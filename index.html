@@ -3,58 +3,134 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PoolCare Pro - Pool</title>
+    <title>PoolCare Pro - Professional</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.7/dayjs.min.js"></script>
-    
-    <!-- שימוש בגרסאות יציבות של Firebase Compat -->
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
 
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; touch-action: manipulation; background-color: #f8fafc; }
-        .card { background: white; border-radius: 16px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); transition: all 0.2s; }
-        input { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; width: 100%; font-size: 16px; text-align: right; outline: none; }
-        input:focus { border-color: #2563eb; ring: 2px ring-blue-500; }
-        .btn-primary { background: #2563eb; color: white; border-radius: 14px; padding: 16px; font-weight: 700; width: 100%; border: none; cursor: pointer; }
-        .btn-primary:active { transform: scale(0.98); opacity: 0.9; }
+        .card { background: white; border-radius: 16px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
+        input, select, textarea { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; width: 100%; font-size: 16px; text-align: right; }
+        .input-qty { width: 80px; padding: 6px; text-align: center; border-bottom: 2px solid #2563eb; border-radius: 6px; background: #f0f7ff; font-weight: bold; }
+        .btn-primary { background: #2563eb; color: white; border-radius: 14px; padding: 16px; font-weight: 700; width: 100%; border: none; }
+        .btn-delete { color: #ef4444; font-weight: bold; padding: 8px; font-size: 14px; }
         .hidden { display: none; }
-        #modal-overlay { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); transition: opacity 0.3s; }
+        #modal-overlay { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+        .section-title { font-weight: bold; border-bottom: 2px solid #eff6ff; padding-bottom: 8px; margin-bottom: 16px; color: #1e3a8a; }
+        .chem-row { display: flex; align-items: center; justify-content: space-between; padding: 10px; background: #f8fafc; border-radius: 12px; }
     </style>
 </head>
-<body class="text-slate-900 pb-10 text-right">
+<body class="text-slate-900 pb-10">
 
+    <!-- מסך ראשי -->
     <div id="main-screen" class="max-w-md mx-auto p-4">
-        <header class="flex justify-between items-center mb-8 pt-6">
+        <header class="flex justify-between items-center mb-8 pt-6 text-right">
             <div>
                 <h1 class="text-2xl font-black text-slate-900">הבריכות שלי</h1>
                 <p id="today-date" class="text-blue-600 font-bold"></p>
-                <div id="connection-status" class="text-xs text-gray-400 mt-1">מתחבר לענן...</div>
             </div>
-            <button onclick="openAddCustomerModal()" class="bg-blue-600 text-white w-14 h-14 rounded-full text-3xl shadow-xl flex items-center justify-center active:bg-blue-700">+</button>
+            <button onclick="openAddCustomerModal()" class="bg-blue-600 text-white w-14 h-14 rounded-full text-3xl shadow-xl flex items-center justify-center">+</button>
         </header>
-        <div id="customer-list" class="space-y-4">
-            <!-- רשימת הלקוחות תטען כאן -->
-        </div>
+        <div id="customer-list" class="space-y-4"></div>
     </div>
 
     <!-- מודאל הוספת לקוח -->
     <div id="modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-white w-full max-w-sm rounded-3xl p-8 shadow-2xl">
-            <h3 class="text-xl font-bold mb-6 text-slate-800 text-center">הוספת לקוח חדש</h3>
+        <div class="bg-white w-full max-w-sm rounded-3xl p-8 shadow-2xl text-right">
+            <h3 class="text-xl font-bold mb-6 text-slate-800">הוספת לקוח חדש</h3>
             <div class="space-y-4">
-                <input type="text" id="new-cust-name" placeholder="שם הלקוח (חובה)">
+                <input type="text" id="new-cust-name" placeholder="שם הלקוח">
                 <input type="text" id="new-cust-city" placeholder="יישוב">
-                <input type="tel" id="new-cust-phone" placeholder="מספר טלפון">
-                <button id="save-btn" onclick="saveNewCustomer()" class="btn-primary mt-4">שמור וסנכרן לענן ☁️</button>
+                <button onclick="saveNewCustomer()" class="btn-primary mt-4">שמור וסנכרן ☁️</button>
                 <button onclick="closeModal()" class="w-full text-slate-400 py-2 font-bold">ביטול</button>
             </div>
         </div>
     </div>
 
+    <!-- מסך טופס טיפול מקצועי -->
+    <div id="service-screen" class="max-w-md mx-auto p-4 hidden text-right">
+        <button onclick="closeForm()" class="text-blue-600 font-bold mb-6 flex items-center gap-2">✕ ביטול וחזרה</button>
+        <h2 id="current-customer-name" class="text-2xl font-black mb-6 text-slate-900 border-b-4 border-blue-600 pb-2 inline-block"></h2>
+        
+        <div class="space-y-6">
+            <!-- מועד הבא -->
+            <section class="card p-5 bg-blue-600 text-white shadow-lg">
+                <label class="block text-sm font-bold mb-2">📅 קביעת טיפול הבא:</label>
+                <input type="date" id="next_service_date" class="text-blue-900 font-bold">
+            </section>
+
+            <!-- בדיקת ערכים -->
+            <section class="card p-5 shadow-sm">
+                <h3 class="section-title">📊 בדיקת ערכים</h3>
+                <div class="grid grid-cols-2 gap-4">
+                    <div>
+                        <label class="block text-xs mb-1 text-gray-500">PH (7.2-7.6)</label>
+                        <input type="number" step="0.1" id="val_ph" placeholder="7.2">
+                    </div>
+                    <div>
+                        <label class="block text-xs mb-1 text-gray-500">כלור (1.5-3.0)</label>
+                        <input type="number" step="0.1" id="val_chlorine" placeholder="1.5">
+                    </div>
+                </div>
+            </section>
+
+            <!-- הוספת חומרים בגרמים -->
+            <section class="card p-5 shadow-sm">
+                <h3 class="section-title">🧪 חומרים שנוספו (גרם/מ"ל)</h3>
+                <div class="space-y-3">
+                    <div class="chem-row">
+                        <label class="flex items-center gap-2"><input type="checkbox" id="chem_chlorine" class="w-5 h-5"> כלור</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" id="qty_chlorine" placeholder="0" class="input-qty"> <span class="text-xs text-gray-400">גרם</span>
+                        </div>
+                    </div>
+                    <div class="chem-row">
+                        <label class="flex items-center gap-2"><input type="checkbox" id="chem_ph_minus" class="w-5 h-5"> PH מינוס</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" id="qty_ph_minus" placeholder="0" class="input-qty"> <span class="text-xs text-gray-400">גרם</span>
+                        </div>
+                    </div>
+                    <div class="chem-row">
+                        <label class="flex items-center gap-2"><input type="checkbox" id="chem_algaecide" class="w-5 h-5"> מונע ירוקת</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" id="qty_algaecide" placeholder="0" class="input-qty"> <span class="text-xs text-gray-400">מ"ל</span>
+                        </div>
+                    </div>
+                    <div class="chem-row">
+                        <label class="flex items-center gap-2"><input type="checkbox" id="chem_clarifier" class="w-5 h-5"> מצליל</label>
+                        <div class="flex items-center gap-2">
+                            <input type="number" id="qty_clarifier" placeholder="0" class="input-qty"> <span class="text-xs text-gray-400">מ"ל</span>
+                        </div>
+                    </div>
+                </div>
+            </section>
+
+            <!-- תחזוקה -->
+            <section class="card p-5 shadow-sm">
+                <h3 class="section-title">🛠️ תחזוקה שבוצעה</h3>
+                <div class="grid grid-cols-1 gap-3">
+                    <label class="flex items-center gap-3 p-2 border rounded-lg"><input type="checkbox" id="task_filter" class="w-5 h-5"> שטיפת פילטרים (Backwash)</label>
+                    <label class="flex items-center gap-3 p-2 border rounded-lg"><input type="checkbox" id="task_skimmer" class="w-5 h-5"> ניקוי סקימרים ורשת</label>
+                    <label class="flex items-center gap-3 p-2 border rounded-lg"><input type="checkbox" id="task_vacuum" class="w-5 h-5"> שאיבת קרקעית / רובוט</label>
+                </div>
+            </section>
+
+            <!-- הערות -->
+            <section class="card p-5 shadow-sm">
+                <h3 class="section-title">📝 הערות ללקוח / לעצמי</h3>
+                <textarea id="service_notes" rows="3" placeholder="האם היה חסר משהו? האם הלקוח ביקש משהו מיוחד?"></textarea>
+            </section>
+
+            <button onclick="saveServiceReport()" class="btn-primary shadow-xl text-lg flex justify-center items-center gap-2">
+                סיום טיפול וסנכרון ☁️
+            </button>
+        </div>
+    </div>
+
     <script>
-        // --- הגדרות Firebase לפרויקט Pool ---
         const firebaseConfig = {
             apiKey: "AIzaSyCBA-DEcrr5Stcdvw77x0Gji1BPn6HxHMQ",
             authDomain: "pool-8526c.firebaseapp.com",
@@ -63,36 +139,15 @@
             messagingSenderId: "301080908637",
             appId: "1:301080908637:web:f708d4e4c9fd6c5f590eb4",
             measurementId: "G-FX7K174PBH",
-            databaseURL: "https://pool-8526c-default-rtdb.europe-west1.firebasedatabase.app"
+            databaseURL: "https://pool-8526c-default-rtdb.europe-west1.firebasedatabase.app/"
         };
 
-        // אתחול
-        try {
-            if (!firebase.apps.length) {
-                firebase.initializeApp(firebaseConfig);
-            }
-            console.log("Firebase initialized");
-        } catch (e) {
-            alert("שגיאת אתחול: " + e.message);
-        }
-
+        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
         const customersRef = db.ref('customers');
 
-        // בדיקת חיבור אקטיבית
-        const connectedRef = db.ref(".info/connected");
-        connectedRef.on("value", (snap) => {
-            const statusDiv = document.getElementById('connection-status');
-            if (snap.val() === true) {
-                statusDiv.innerText = "● מחובר לענן";
-                statusDiv.classList.replace('text-gray-400', 'text-green-600');
-            } else {
-                statusDiv.innerText = "○ מנסה להתחבר...";
-                statusDiv.classList.replace('text-green-600', 'text-orange-500');
-            }
-        });
-
         let customers = [];
+        let activeCustomerId = null;
 
         function getSmartTwoWeeksDate() {
             let target = dayjs().add(14, 'day');
@@ -101,16 +156,10 @@
             return target.format('YYYY-MM-DD');
         }
 
-        // האזנה לנתונים
         customersRef.on('value', (snapshot) => {
             const data = snapshot.val();
             customers = data ? Object.keys(data).map(key => ({ firebaseId: key, ...data[key] })) : [];
             renderCustomers();
-        }, (error) => {
-            console.error("Firebase Error:", error);
-            if(error.message.includes("permission_denied")) {
-                alert("שגיאת הרשאות: ודאי שה-Rules ב-Firebase מוגדרים כ-true");
-            }
         });
 
         function renderCustomers() {
@@ -118,67 +167,94 @@
             list.innerHTML = '';
             
             if (customers.length === 0) {
-                list.innerHTML = '<div class="text-center text-gray-400 mt-10">אין לקוחות רשומים בענן.</div>';
+                list.innerHTML = '<div class="text-center p-10 bg-white rounded-2xl border-2 border-dashed border-gray-200">אין לקוחות פעילים.<br>לחצי על ה- + למעלה</div>';
                 return;
             }
 
-            const sorted = [...customers].sort((a, b) => dayjs(a.nextService).isAfter(dayjs(b.nextService)) ? 1 : -1);
-
-            sorted.forEach(c => {
+            customers.forEach(c => {
                 list.innerHTML += `
-                    <div class="card p-5 border-r-8 border-blue-500 flex justify-between items-center bg-white mb-4">
-                        <div class="text-right">
-                            <h3 class="font-bold text-lg text-slate-800">${c.name}</h3>
-                            <p class="text-sm text-gray-500">${c.city || ''}</p>
-                            <p class="text-xs mt-1 font-bold text-orange-600 italic">טיפול הבא: ${dayjs(c.nextService).format('DD/MM/YYYY')}</p>
+                    <div class="card p-5 border-r-8 border-blue-500 bg-white mb-4 text-right transition-all active:scale-95">
+                        <div class="flex justify-between items-start mb-4">
+                            <div>
+                                <h3 class="font-bold text-xl text-slate-800">${c.name}</h3>
+                                <p class="text-sm text-gray-500">${c.city || ''}</p>
+                                <div class="flex items-center gap-1 mt-2">
+                                    <span class="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></span>
+                                    <p class="text-xs font-bold text-orange-600 italic">ביקור הבא: ${dayjs(c.nextService).format('DD/MM/YYYY')}</p>
+                                </div>
+                            </div>
+                            <button onclick="deleteCustomer('${c.firebaseId}', '${c.name}')" class="btn-delete">מחיקה 🗑️</button>
                         </div>
-                        <div class="bg-blue-50 text-blue-600 px-3 py-1 rounded-full text-xs font-bold">פעיל</div>
+                        <button onclick="openServiceForm('${c.firebaseId}')" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg flex justify-center items-center gap-2">
+                            התחל ביקור 🏊‍♂️
+                        </button>
                     </div>`;
             });
         }
 
+        function openServiceForm(id) {
+            activeCustomerId = id;
+            const customer = customers.find(c => c.firebaseId === id);
+            document.getElementById('main-screen').classList.add('hidden');
+            document.getElementById('service-screen').classList.remove('hidden');
+            document.getElementById('current-customer-name').innerText = customer.name;
+            document.getElementById('next_service_date').value = getSmartTwoWeeksDate();
+            window.scrollTo(0,0);
+        }
+
+        async function saveServiceReport() {
+            const updates = { 
+                nextService: document.getElementById('next_service_date').value,
+                lastPH: document.getElementById('val_ph').value,
+                lastChlorine: document.getElementById('val_chlorine').value,
+                notes: document.getElementById('service_notes').value,
+                lastVisit: dayjs().format('YYYY-MM-DD'),
+                chemicals: {
+                    chlorine: { used: document.getElementById('chem_chlorine').checked, qty: document.getElementById('qty_chlorine').value },
+                    phMinus: { used: document.getElementById('chem_ph_minus').checked, qty: document.getElementById('qty_ph_minus').value },
+                    algaecide: { used: document.getElementById('chem_algaecide').checked, qty: document.getElementById('qty_algaecide').value },
+                    clarifier: { used: document.getElementById('chem_clarifier').checked, qty: document.getElementById('qty_clarifier').value }
+                },
+                tasks: {
+                    filterWash: document.getElementById('task_filter').checked,
+                    skimmerClean: document.getElementById('task_skimmer').checked,
+                    vacuum: document.getElementById('task_vacuum').checked
+                }
+            };
+            try {
+                await db.ref('customers/' + activeCustomerId).update(updates);
+                alert("הדו\"ח נשמר בהצלחה ב-Pool Cloud! ☁️");
+                closeForm();
+            } catch (e) { alert("שגיאה בסנכרון: " + e.message); }
+        }
+
+        async function deleteCustomer(id, name) {
+            if (confirm(`למחוק את ${name}? כל המידע יאבד.`)) {
+                try {
+                    await db.ref('customers/' + id).remove();
+                } catch (e) { alert("שגיאה: " + e.message); }
+            }
+        }
+
         async function saveNewCustomer() {
-            const btn = document.getElementById('save-btn');
             const name = document.getElementById('new-cust-name').value;
             const city = document.getElementById('new-cust-city').value;
-            const phone = document.getElementById('new-cust-phone').value;
-
-            if (!name) return alert("חובה להזין שם לקוח!");
-
-            // מניעת לחיצות כפולות וסימון ויזואלי
-            btn.disabled = true;
-            btn.innerText = "שומר...";
-
+            if (!name) return alert("חובה שם לקוח");
             try {
-                console.log("Attempting to save to:", firebaseConfig.databaseURL);
-                await customersRef.push({
-                    name, 
-                    city, 
-                    phone,
-                    nextService: getSmartTwoWeeksDate(),
-                    createdAt: firebase.database.ServerValue.TIMESTAMP
-                });
-                
+                await customersRef.push({ name, city, nextService: getSmartTwoWeeksDate() });
                 closeModal();
-                // איפוס שדות
                 document.getElementById('new-cust-name').value = '';
                 document.getElementById('new-cust-city').value = '';
-                document.getElementById('new-cust-phone').value = '';
-            } catch (e) {
-                console.error("Save failed:", e);
-                alert("הסנכרון נכשל: " + e.message);
-            } finally {
-                btn.disabled = false;
-                btn.innerText = "שמור וסנכרן לענן ☁️";
-            }
+            } catch (e) { alert("שגיאה: " + e.message); }
         }
 
         function openAddCustomerModal() { document.getElementById('modal-overlay').classList.remove('hidden'); }
         function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
-
-        document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('today-date').innerText = dayjs().format('DD/MM/YYYY');
-        });
+        function closeForm() {
+            document.getElementById('service-screen').classList.add('hidden');
+            document.getElementById('main-screen').classList.remove('hidden');
+        }
+        document.getElementById('today-date').innerText = dayjs().format('DD/MM/YYYY');
     </script>
 </body>
 </html>
