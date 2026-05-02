@@ -14,7 +14,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, set, onValue, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        // הגדרות הפרויקט שלך (מעודכן עם ה-databaseURL)
+        // הגדרות הפרויקט המעודכנות שלך
         const firebaseConfig = {
             apiKey: "AIzaSyByGzovNpq9WksV3Y_lLBAZC_I-NcLA8pA",
             authDomain: "poolcare-data.firebaseapp.com",
@@ -22,7 +22,7 @@
             storageBucket: "poolcare-data.firebasestorage.app",
             messagingSenderId: "618878936393",
             appId: "1:618878936393:web:0be324b60af54283cae698",
-            databaseURL: "https://poolcare-data-default-rtdb.firebaseio.com" 
+            databaseURL: "https://poolcare-data-default-rtdb.europe-west1.firebasedatabase.app/" 
         };
 
         const app = initializeApp(firebaseConfig);
@@ -58,7 +58,7 @@
         window.renderCustomers = () => {
             const list = document.getElementById('customer-list');
             list.innerHTML = '';
-            // מיון לפי תאריך טיפול קרוב
+            
             const sorted = [...customers].sort((a, b) => dayjs(a.nextService).isAfter(dayjs(b.nextService)) ? 1 : -1);
             
             if (sorted.length === 0) {
@@ -80,22 +80,29 @@
 
         // שמירת לקוח חדש לענן
         window.saveNewCustomer = async () => {
-            const name = document.getElementById('new-cust-name').value;
-            if (!name) return alert("נא להזין שם לקוח");
+            const nameInput = document.getElementById('new-cust-name');
+            const cityInput = document.getElementById('new-cust-city');
+            const phoneInput = document.getElementById('new-cust-phone');
+
+            if (!nameInput.value) return alert("נא להזין שם לקוח");
             
             const newCust = {
-                name,
-                city: document.getElementById('new-cust-city').value,
-                phone: document.getElementById('new-cust-phone').value,
+                name: nameInput.value,
+                city: cityInput.value,
+                phone: phoneInput.value,
                 nextService: getSmartTwoWeeksDate()
             };
             
-            await push(customersRef, newCust);
-            closeModal();
-            // איפוס שדות
-            document.getElementById('new-cust-name').value = '';
-            document.getElementById('new-cust-city').value = '';
-            document.getElementById('new-cust-phone').value = '';
+            try {
+                await push(customersRef, newCust);
+                closeModal();
+                nameInput.value = '';
+                cityInput.value = '';
+                phoneInput.value = '';
+            } catch (error) {
+                console.error("שגיאה בשמירה:", error);
+                alert("שגיאה בסנכרון מול Firebase. וודא שהגדרת Rules ל-true.");
+            }
         };
 
         // פתיחת טופס טיפול
@@ -195,10 +202,6 @@
                         <label class="text-xs text-slate-400 font-bold mr-2">כלור</label>
                         <input type="number" step="0.1" placeholder="1.5">
                     </div>
-                </div>
-                <div class="pt-4 border-t border-slate-50">
-                    <label class="text-xs text-slate-400 font-bold mb-1 block">כמות כלור שנוספה (גרם)</label>
-                    <input type="number" placeholder="לדוגמה: 200">
                 </div>
             </div>
 
