@@ -1,0 +1,212 @@
+<!DOCTYPE html>
+<html lang="he" dir="rtl">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>PoolCare Pro - ניהול תחזוקה</title>
+    
+    <!-- ספריות עיצוב וזמן -->
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.7/dayjs.min.js"></script>
+    
+    <!-- Firebase SDKs -->
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, set, onValue, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+
+        // הגדרות הפרויקט שלך (מעודכן עם ה-databaseURL)
+        const firebaseConfig = {
+            apiKey: "AIzaSyByGzovNpq9WksV3Y_lLBAZC_I-NcLA8pA",
+            authDomain: "poolcare-data.firebaseapp.com",
+            projectId: "poolcare-data",
+            storageBucket: "poolcare-data.firebasestorage.app",
+            messagingSenderId: "618878936393",
+            appId: "1:618878936393:web:0be324b60af54283cae698",
+            databaseURL: "https://poolcare-data-default-rtdb.firebaseio.com" 
+        };
+
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const customersRef = ref(db, 'customers');
+
+        let customers = [];
+        let activeCustomerId = null;
+
+        // טעינת נתונים בזמן אמת מהענן
+        onValue(customersRef, (snapshot) => {
+            const data = snapshot.val();
+            if (data) {
+                customers = Object.keys(data).map(key => ({
+                    firebaseId: key,
+                    ...data[key]
+                }));
+            } else {
+                customers = [];
+            }
+            renderCustomers();
+        });
+
+        // לוגיקת תאריכים: שבועיים קדימה, דילוג על שישי-שבת
+        function getSmartTwoWeeksDate() {
+            let target = dayjs().add(14, 'day');
+            if (target.day() === 5) target = target.add(2, 'day'); // שישי -> ראשון
+            else if (target.day() === 6) target = target.add(1, 'day'); // שבת -> ראשון
+            return target.format('YYYY-MM-DD');
+        }
+
+        // הצגת רשימת לקוחות
+        window.renderCustomers = () => {
+            const list = document.getElementById('customer-list');
+            list.innerHTML = '';
+            // מיון לפי תאריך טיפול קרוב
+            const sorted = [...customers].sort((a, b) => dayjs(a.nextService).isAfter(dayjs(b.nextService)) ? 1 : -1);
+            
+            if (sorted.length === 0) {
+                list.innerHTML = '<p class="text-center text-gray-400 mt-10 text-lg">אין לקוחות רשומים. לחץ על + כדי להוסיף.</p>';
+                return;
+            }
+
+            sorted.forEach(c => {
+                list.innerHTML += `
+                    <div class="card p-5 border-r-8 border-blue-500 flex justify-between items-center bg-white shadow-md mb-4">
+                        <div>
+                            <h3 class="font-bold text-xl text-slate-800">${c.name}</h3>
+                            <p class="text-sm font-semibold text-orange-600">טיפול הבא: ${dayjs(c.nextService).format('DD/MM/YYYY')}</p>
+                        </div>
+                        <button onclick="openServiceForm('${c.firebaseId}')" class="bg-blue-600 text-white px-8 py-3 rounded-2xl font-bold active:scale-95 transition-all shadow-lg">התחל</button>
+                    </div>`;
+            });
+        };
+
+        // שמירת לקוח חדש לענן
+        window.saveNewCustomer = async () => {
+            const name = document.getElementById('new-cust-name').value;
+            if (!name) return alert("נא להזין שם לקוח");
+            
+            const newCust = {
+                name,
+                city: document.getElementById('new-cust-city').value,
+                phone: document.getElementById('new-cust-phone').value,
+                nextService: getSmartTwoWeeksDate()
+            };
+            
+            await push(customersRef, newCust);
+            closeModal();
+            // איפוס שדות
+            document.getElementById('new-cust-name').value = '';
+            document.getElementById('new-cust-city').value = '';
+            document.getElementById('new-cust-phone').value = '';
+        };
+
+        // פתיחת טופס טיפול
+        window.openServiceForm = (id) => {
+            activeCustomerId = id;
+            const customer = customers.find(c => c.firebaseId === id);
+            document.getElementById('main-screen').classList.add('hidden');
+            document.getElementById('service-screen').classList.remove('hidden');
+            document.getElementById('current-customer-name').innerText = customer.name;
+            document.getElementById('next_service_date').value = getSmartTwoWeeksDate();
+        };
+
+        // סיום טיפול ועדכון תאריך הבא
+        window.saveServiceReport = async () => {
+            const nextDate = document.getElementById('next_service_date').value;
+            const customer = customers.find(c => c.firebaseId === activeCustomerId);
+            if (customer) {
+                const updatedData = { ...customer, nextService: nextDate };
+                const fid = updatedData.firebaseId;
+                delete updatedData.firebaseId; 
+                await set(ref(db, 'customers/' + fid), updatedData);
+                closeForm();
+            }
+        };
+
+        window.closeModal = () => document.getElementById('modal-overlay').classList.add('hidden');
+        window.closeForm = () => {
+            document.getElementById('service-screen').classList.add('hidden');
+            document.getElementById('main-screen').classList.remove('hidden');
+        };
+
+        document.getElementById('today-date').innerText = dayjs().format('DD/MM/YYYY');
+    </script>
+
+    <style>
+        body { font-family: -apple-system, system-ui, sans-serif; touch-action: manipulation; background-color: #f1f5f9; }
+        .card { border-radius: 20px; }
+        input { border: 2px solid #e2e8f0; border-radius: 14px; padding: 14px; width: 100%; font-size: 16px; transition: border-color 0.2s; }
+        input:focus { outline: none; border-color: #2563eb; }
+        .btn-primary { background: #2563eb; color: white; border-radius: 16px; padding: 18px; font-weight: 700; width: 100%; font-size: 18px; }
+        .hidden { display: none; }
+        #modal-overlay { background: rgba(0,0,0,0.5); backdrop-filter: blur(6px); }
+    </style>
+</head>
+<body class="text-slate-900 pb-10">
+
+    <!-- מסך ראשי -->
+    <div id="main-screen" class="max-w-md mx-auto p-4">
+        <header class="flex justify-between items-end mb-8 pt-8">
+            <div>
+                <h1 class="text-3xl font-black text-slate-900 tracking-tight">הבריכות שלי</h1>
+                <p id="today-date" class="text-blue-600 font-bold"></p>
+            </div>
+            <button onclick="document.getElementById('modal-overlay').classList.remove('hidden')" class="bg-blue-600 text-white w-14 h-14 rounded-full text-4xl shadow-xl flex items-center justify-center active:scale-90 transition-transform">+</button>
+        </header>
+        
+        <div id="customer-list"></div>
+    </div>
+
+    <!-- מודאל הוספת לקוח -->
+    <div id="modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-8 shadow-2xl">
+            <h3 class="text-2xl font-bold mb-6 text-slate-800">הוספת לקוח חדש</h3>
+            <div class="space-y-4">
+                <input type="text" id="new-cust-name" placeholder="שם הלקוח">
+                <input type="text" id="new-cust-city" placeholder="יישוב">
+                <input type="tel" id="new-cust-phone" placeholder="מספר טלפון">
+                <button onclick="saveNewCustomer()" class="btn-primary mt-4 shadow-lg shadow-blue-200">שמור וסנכרן</button>
+                <button onclick="closeModal()" class="w-full text-slate-400 py-2 font-bold mt-2">ביטול</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- מסך טופס טיפול -->
+    <div id="service-screen" class="max-w-md mx-auto p-4 hidden">
+        <button onclick="closeForm()" class="text-blue-600 font-bold mb-8 flex items-center gap-2 text-lg">
+            <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M15 19l-7-7 7-7"></path></svg>
+            חזרה
+        </button>
+        
+        <h2 id="current-customer-name" class="text-3xl font-black mb-10 text-slate-900 border-b-4 border-blue-500 inline-block"></h2>
+        
+        <div class="space-y-8">
+            <div class="bg-blue-600 p-6 rounded-3xl shadow-lg">
+                <label class="block text-sm font-bold text-blue-50 mb-3 underline">📅 קביעת מועד טיפול הבא:</label>
+                <input type="date" id="next_service_date" class="bg-white border-none font-bold text-blue-900">
+            </div>
+
+            <div class="bg-white p-6 rounded-3xl shadow-md border border-slate-100 space-y-6">
+                <p class="font-black text-slate-700 text-lg">🧪 ערכי מים (אופציונלי):</p>
+                <div class="grid grid-cols-2 gap-4">
+                    <div class="space-y-1">
+                        <label class="text-xs text-slate-400 font-bold mr-2">PH</label>
+                        <input type="number" step="0.1" placeholder="7.2">
+                    </div>
+                    <div class="space-y-1">
+                        <label class="text-xs text-slate-400 font-bold mr-2">כלור</label>
+                        <input type="number" step="0.1" placeholder="1.5">
+                    </div>
+                </div>
+                <div class="pt-4 border-t border-slate-50">
+                    <label class="text-xs text-slate-400 font-bold mb-1 block">כמות כלור שנוספה (גרם)</label>
+                    <input type="number" placeholder="לדוגמה: 200">
+                </div>
+            </div>
+
+            <button onclick="saveServiceReport()" class="btn-primary shadow-2xl shadow-blue-300 flex items-center justify-center gap-3">
+                <span>סיים טיפול ועדכן ענן</span>
+                <svg class="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>
+            </button>
+        </div>
+    </div>
+</body>
+</html>
