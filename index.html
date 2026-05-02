@@ -3,13 +3,13 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PoolCare Pro - ניהול תחזוקה</title>
+    <title>PoolCare Pro - Pool</title>
     
-    <!-- ספריות חיצוניות -->
+    <!-- ספריות עיצוב ותאריכים -->
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.7/dayjs.min.js"></script>
     
-    <!-- טעינת Firebase גרסת Compat ליציבות מקסימלית ב-iPad וב-Coder -->
+    <!-- טעינת Firebase גרסת Compat ליציבות ב-iPad -->
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/10.8.0/firebase-database-compat.js"></script>
 
@@ -21,10 +21,9 @@
         .btn-primary:active { transform: scale(0.98); opacity: 0.9; }
         .hidden { display: none; }
         #modal-overlay { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
-        .section-title { font-weight: bold; border-bottom: 1px solid #f0f0f0; padding-bottom: 8px; margin-bottom: 12px; color: #1e3a8a; }
     </style>
 </head>
-<body class="text-slate-900 pb-10">
+<body class="text-slate-900 pb-10 text-right">
 
     <!-- מסך ראשי -->
     <div id="main-screen" class="max-w-md mx-auto p-4">
@@ -52,43 +51,20 @@
         </div>
     </div>
 
-    <!-- מסך טופס טיפול -->
-    <div id="service-screen" class="max-w-md mx-auto p-4 hidden text-right">
-        <button onclick="closeForm()" class="text-blue-600 font-bold mb-6 flex items-center gap-2">✕ ביטול וחזרה</button>
-        <h2 id="current-customer-name" class="text-2xl font-black mb-8 text-slate-900"></h2>
-        
-        <div class="space-y-6">
-            <section class="card p-6 bg-blue-50 border border-blue-100">
-                <label class="block text-sm font-bold text-blue-800 mb-3 underline">📅 מועד טיפול הבא:</label>
-                <input type="date" id="next_service_date" class="bg-white font-bold text-blue-900">
-            </section>
-
-            <section class="card p-4 shadow-sm">
-                <h3 class="section-title">📊 בדיקת ערכים (לפני)</h3>
-                <div class="grid grid-cols-2 gap-4">
-                    <input type="number" step="0.1" id="val_ph" placeholder="PH">
-                    <input type="number" step="0.1" id="val_chlorine" placeholder="כלור">
-                </div>
-            </section>
-
-            <button onclick="saveServiceReport()" class="btn-primary shadow-lg">סיים טיפול ועדכן ענן ☁️</button>
-        </div>
-    </div>
-
     <script>
-        // --- הגדרות Firebase המעודכנות מהתמונה שלך ---
+        // --- הגדרות Firebase לפרויקט Pool המעודכן ---
         const firebaseConfig = {
-            apiKey: "AIzaSyByGzovNpq9WksV3Y_lLBAZC_I-NcLA8pA",
-            authDomain: "poolcare-data.firebaseapp.com",
-            databaseURL: "https://poolcare-data-default-rtdb.europe-west1.firebasedatabase.app",
-            projectId: "poolcare-data",
-            storageBucket: "poolcare-data.firebasestorage.app",
-            messagingSenderId: "618878936393",
-            appId: "1:618878936393:web:daf4537118876e1bcae698",
-            measurementId: "G-E5MHLJ7CRG"
+            apiKey: "AIzaSyCBA-DEcrr5Stcdvw77x0Gji1BPn6HxHMQ",
+            authDomain: "pool-8526c.firebaseapp.com",
+            projectId: "pool-8526c",
+            storageBucket: "pool-8526c.firebasestorage.app",
+            messagingSenderId: "301080908637",
+            appId: "1:301080908637:web:f708d4e4c9fd6c5f590eb4",
+            measurementId: "G-FX7K174PBH",
+            databaseURL: "https://pool-8526c-default-rtdb.europe-west1.firebasedatabase.app/"
         };
 
-        // אתחול המערכת
+        // אתחול
         if (!firebase.apps.length) {
             firebase.initializeApp(firebaseConfig);
         }
@@ -96,7 +72,6 @@
         const customersRef = db.ref('customers');
 
         let customers = [];
-        let activeCustomerId = null;
 
         function getSmartTwoWeeksDate() {
             let target = dayjs().add(14, 'day');
@@ -105,7 +80,7 @@
             return target.format('YYYY-MM-DD');
         }
 
-        // טעינת נתונים בזמן אמת מהענן
+        // האזנה לשינויים בענן (סנכרון דו-כיווני)
         customersRef.on('value', (snapshot) => {
             const data = snapshot.val();
             customers = data ? Object.keys(data).map(key => ({ firebaseId: key, ...data[key] })) : [];
@@ -120,7 +95,7 @@
             const sorted = [...customers].sort((a, b) => dayjs(a.nextService).isAfter(dayjs(b.nextService)) ? 1 : -1);
 
             if (sorted.length === 0) {
-                list.innerHTML = '<p class="text-center text-gray-400 mt-10">אין לקוחות רשומים. לחצי על +.</p>';
+                list.innerHTML = '<p class="text-center text-gray-400 mt-10">אין לקוחות רשומים בענן.</p>';
                 return;
             }
 
@@ -132,7 +107,7 @@
                             <p class="text-sm text-gray-500">${c.city || ''}</p>
                             <p class="text-xs mt-1 font-bold text-orange-600 italic">טיפול הבא: ${dayjs(c.nextService).format('DD/MM/YYYY')}</p>
                         </div>
-                        <button onclick="openServiceForm('${c.firebaseId}')" class="bg-blue-600 text-white px-6 py-3 rounded-2xl font-bold">התחל</button>
+                        <div class="bg-blue-100 text-blue-700 px-3 py-1 rounded-lg text-xs font-bold">פעיל</div>
                     </div>`;
             });
         }
@@ -145,6 +120,7 @@
             if (!name) return alert("חובה להזין שם לקוח");
 
             try {
+                // דחיפת הנתונים ישירות ל-Firebase
                 await customersRef.push({
                     name, city, phone,
                     nextService: getSmartTwoWeeksDate()
@@ -158,41 +134,8 @@
             }
         }
 
-        function openServiceForm(id) {
-            activeCustomerId = id;
-            const customer = customers.find(c => c.firebaseId === id);
-            document.getElementById('main-screen').classList.add('hidden');
-            document.getElementById('service-screen').classList.remove('hidden');
-            document.getElementById('current-customer-name').innerText = "ביקור אצל: " + customer.name;
-            document.getElementById('next_service_date').value = getSmartTwoWeeksDate();
-            window.scrollTo(0,0);
-        }
-
-        async function saveServiceReport() {
-            const newDate = document.getElementById('next_service_date').value;
-            const customer = customers.find(c => c.firebaseId === activeCustomerId);
-            
-            if (customer) {
-                const fid = customer.firebaseId;
-                const updatedData = { ...customer, nextService: newDate };
-                delete updatedData.firebaseId;
-
-                try {
-                    await db.ref('customers/' + fid).set(updatedData);
-                    closeForm();
-                    alert("הדו\"ח נשמר והתאריך הבא עודכן בהצלחה!");
-                } catch (e) {
-                    alert("שגיאה בעדכון: " + e.message);
-                }
-            }
-        }
-
         function openAddCustomerModal() { document.getElementById('modal-overlay').classList.remove('hidden'); }
         function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
-        function closeForm() {
-            document.getElementById('service-screen').classList.add('hidden');
-            document.getElementById('main-screen').classList.remove('hidden');
-        }
 
         document.addEventListener('DOMContentLoaded', () => {
             document.getElementById('today-date').innerText = dayjs().format('DD/MM/YYYY');
