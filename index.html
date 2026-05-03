@@ -11,6 +11,7 @@
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
         import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
+        // הגדרות הפרויקט המעודכנות שלך
         const firebaseConfig = {
             apiKey: "AIzaSyD-qWvH9C9X8M0f8U_xY7k2S1L0r3E",
             authDomain: "pool-8526c.firebaseapp.com",
@@ -22,35 +23,32 @@
         const db = getDatabase(app);
         const customersRef = ref(db, 'customers');
 
-        // טעינת לקוחות בזמן אמת
+        // טעינה והצגה של לקוחות
         onValue(customersRef, (snapshot) => {
             const data = snapshot.val();
             const list = document.getElementById('customer-list');
             list.innerHTML = '';
-            
             if (data) {
                 Object.keys(data).forEach(id => {
                     const c = data[id];
                     list.innerHTML += `
-                        <div class="bg-white p-4 rounded-2xl shadow mb-3 border-r-4 border-blue-500 text-right">
+                        <div class="bg-white p-4 rounded-2xl shadow mb-3 border-r-4 border-blue-600 text-right">
                             <h3 class="font-bold text-lg">${c.name}</h3>
                             <p class="text-sm text-gray-500">${c.city || ''} | ${c.phone || ''}</p>
                         </div>`;
                 });
             } else {
-                list.innerHTML = '<p class="text-center text-gray-400 mt-10">אין לקוחות כרגע</p>';
+                list.innerHTML = '<p class="text-center text-gray-400 mt-10">אין לקוחות רשומים</p>';
             }
         });
 
         window.saveNewCustomer = async () => {
             const name = document.getElementById('new_cust_name').value;
-            if (!name) {
-                alert("נא להזין שם לקוח");
-                return;
-            }
+            if (!name) return alert("נא להזין שם לקוח");
 
             const btn = document.getElementById('save-btn');
-            btn.innerText = "שומר...";
+            const originalText = btn.innerText;
+            btn.innerText = "שומר בענן...";
             btn.disabled = true;
 
             try {
@@ -60,13 +58,14 @@
                     phone: document.getElementById('new_cust_phone').value,
                     nextService: dayjs().add(14, 'day').format('YYYY-MM-DD')
                 });
+                // הצלחה - סגירת המודאל ואיפוס
                 document.getElementById('modal-overlay').classList.add('hidden');
                 document.getElementById('new_cust_name').value = '';
             } catch (error) {
-                console.error(error);
-                alert("שגיאה בסנכרון: " + error.message);
+                // אם הגענו לכאן, סימן שיש בעיית הרשאות ב-Firebase
+                alert("שגיאת סנכרון: " + error.message + "\n\nוודא שהגדרת Rules ל-true ולחצת Publish!");
             } finally {
-                btn.innerText = "שמור וסנכרן";
+                btn.innerText = originalText;
                 btn.disabled = false;
             }
         };
@@ -76,25 +75,25 @@
         };
     </script>
 </head>
-<body class="bg-slate-50 p-4">
+<body class="bg-slate-100 p-4">
     <div class="max-w-md mx-auto">
-        <div class="flex justify-between items-center mb-6 pt-4 text-right">
-            <div>
-                <h1 class="text-2xl font-black">הבריכות שלי</h1>
-            </div>
+        <header class="flex justify-between items-center mb-8 pt-4">
+            <h1 class="text-2xl font-black text-slate-800">הבריכות שלי</h1>
             <button onclick="toggleModal(true)" class="bg-blue-600 text-white w-12 h-12 rounded-full text-2xl shadow-lg">+</button>
-        </div>
+        </header>
         <div id="customer-list"></div>
     </div>
 
-    <div id="modal-overlay" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 hidden">
-        <div class="bg-white w-full rounded-3xl p-6 text-right">
-            <h2 class="text-xl font-bold mb-4">לקוח חדש</h2>
-            <input type="text" id="new_cust_name" placeholder="שם הלקוח" class="w-full border p-3 rounded-xl mb-3 text-right">
-            <input type="text" id="new_cust_city" placeholder="יישוב" class="w-full border p-3 rounded-xl mb-3 text-right">
-            <input type="tel" id="new_cust_phone" placeholder="טלפון" class="w-full border p-3 rounded-xl mb-4 text-right">
-            <button id="save-btn" onclick="saveNewCustomer()" class="w-full bg-blue-600 text-white p-4 rounded-xl font-bold">שמור וסנכרן</button>
-            <button onclick="toggleModal(false)" class="w-full text-gray-400 py-3 mt-2">ביטול</button>
+    <div id="modal-overlay" class="fixed inset-0 bg-black/60 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-white w-full rounded-3xl p-6 shadow-2xl text-right">
+            <h2 class="text-xl font-bold mb-5">הוספת לקוח חדש</h2>
+            <div class="space-y-4">
+                <input type="text" id="new_cust_name" placeholder="שם הלקוח" class="w-full border p-4 rounded-xl text-right focus:ring-2 focus:ring-blue-500 outline-none">
+                <input type="text" id="new_cust_city" placeholder="יישוב" class="w-full border p-4 rounded-xl text-right outline-none">
+                <input type="tel" id="new_cust_phone" placeholder="טלפון" class="w-full border p-4 rounded-xl text-right outline-none">
+                <button id="save-btn" onclick="saveNewCustomer()" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold text-lg shadow-md active:bg-blue-700">שמור וסנכרן</button>
+                <button onclick="toggleModal(false)" class="w-full text-slate-400 py-2">ביטול</button>
+            </div>
         </div>
     </div>
 </body>
