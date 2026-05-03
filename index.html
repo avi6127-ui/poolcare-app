@@ -4,22 +4,17 @@
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
     <title>PoolCare Pro</title>
-    
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.7/dayjs.min.js"></script>
     
     <script type="module">
         import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
-        import { getDatabase, ref, set, onValue, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
+        import { getDatabase, ref, push, onValue } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-        // הגדרות עבור פרויקט Pool (מעודכן לפי צילום המסך הקודם שלך)
         const firebaseConfig = {
             apiKey: "AIzaSyD-qWvH9C9X8M0f8U_xY7k2S1L0r3E",
             authDomain: "pool-8526c.firebaseapp.com",
             projectId: "pool-8526c",
-            storageBucket: "pool-8526c.firebasestorage.app",
-            messagingSenderId: "301080908637",
-            appId: "1:301080908637:web:f708d4e4c9fd6c5f590eb4",
             databaseURL: "https://pool-8526c-default-rtdb.europe-west1.firebasedatabase.app/" 
         };
 
@@ -27,147 +22,79 @@
         const db = getDatabase(app);
         const customersRef = ref(db, 'customers');
 
-        let customers = [];
-        let activeCustomerId = null;
-
+        // טעינת לקוחות בזמן אמת
         onValue(customersRef, (snapshot) => {
             const data = snapshot.val();
-            customers = data ? Object.keys(data).map(key => ({ firebaseId: key, ...data[key] })) : [];
-            renderCustomers();
-        });
-
-        function getSmartTwoWeeksDate() {
-            let target = dayjs().add(14, 'day');
-            if (target.day() === 5) target = target.add(2, 'day');
-            else if (target.day() === 6) target = target.add(1, 'day');
-            return target.format('YYYY-MM-DD');
-        }
-
-        window.renderCustomers = () => {
             const list = document.getElementById('customer-list');
             list.innerHTML = '';
-            const sorted = [...customers].sort((a, b) => dayjs(a.nextService).isAfter(dayjs(b.nextService)) ? 1 : -1);
             
-            if (sorted.length === 0) {
-                list.innerHTML = '<p class="text-center text-gray-400 mt-10 text-lg">אין לקוחות רשומים.</p>';
+            if (data) {
+                Object.keys(data).forEach(id => {
+                    const c = data[id];
+                    list.innerHTML += `
+                        <div class="bg-white p-4 rounded-2xl shadow mb-3 border-r-4 border-blue-500 text-right">
+                            <h3 class="font-bold text-lg">${c.name}</h3>
+                            <p class="text-sm text-gray-500">${c.city || ''} | ${c.phone || ''}</p>
+                        </div>`;
+                });
+            } else {
+                list.innerHTML = '<p class="text-center text-gray-400 mt-10">אין לקוחות כרגע</p>';
+            }
+        });
+
+        window.saveNewCustomer = async () => {
+            const name = document.getElementById('new_cust_name').value;
+            if (!name) {
+                alert("נא להזין שם לקוח");
                 return;
             }
 
-            sorted.forEach(c => {
-                list.innerHTML += `
-                    <div class="card p-5 border-r-8 border-blue-500 flex justify-between items-center bg-white shadow-md mb-4 text-right">
-                        <div>
-                            <h3 class="font-bold text-xl text-slate-800">${c.name}</h3>
-                            <p class="text-sm font-semibold text-orange-600">טיפול הבא: ${dayjs(c.nextService).format('DD/MM/YYYY')}</p>
-                        </div>
-                        <button onclick="openServiceForm('${c.firebaseId}')" class="bg-blue-600 text-white px-8 py-3 rounded-2xl font-bold active:scale-95 shadow-lg">התחל</button>
-                    </div>`;
-            });
-        };
+            const btn = document.getElementById('save-btn');
+            btn.innerText = "שומר...";
+            btn.disabled = true;
 
-        window.saveNewCustomer = async () => {
-            const nameInput = document.getElementById('new_cust_name');
-            const cityInput = document.getElementById('new_cust_city');
-            const phoneInput = document.getElementById('new_cust_phone');
-
-            if (!nameInput.value) return alert("נא להזין שם לקוח");
-            
-            const newCust = {
-                name: nameInput.value,
-                city: cityInput.value,
-                phone: phoneInput.value,
-                nextService: getSmartTwoWeeksDate()
-            };
-            
             try {
-                await push(customersRef, newCust);
-                closeModal();
-                nameInput.value = '';
-                cityInput.value = '';
-                phoneInput.value = '';
-            } catch (e) {
-                alert("שגיאה בסנכרון. בדוק את ה-Rules ב-Firebase.");
+                await push(customersRef, {
+                    name: name,
+                    city: document.getElementById('new_cust_city').value,
+                    phone: document.getElementById('new_cust_phone').value,
+                    nextService: dayjs().add(14, 'day').format('YYYY-MM-DD')
+                });
+                document.getElementById('modal-overlay').classList.add('hidden');
+                document.getElementById('new_cust_name').value = '';
+            } catch (error) {
+                console.error(error);
+                alert("שגיאה בסנכרון: " + error.message);
+            } finally {
+                btn.innerText = "שמור וסנכרן";
+                btn.disabled = false;
             }
         };
 
-        window.openServiceForm = (id) => {
-            activeCustomerId = id;
-            const customer = customers.find(c => c.firebaseId === id);
-            document.getElementById('main-screen').classList.add('hidden');
-            document.getElementById('service-screen').classList.remove('hidden');
-            document.getElementById('current-customer-name').innerText = customer.name;
-            document.getElementById('next_service_date').value = getSmartTwoWeeksDate();
+        window.toggleModal = (show) => {
+            document.getElementById('modal-overlay').classList.toggle('hidden', !show);
         };
-
-        window.saveServiceReport = async () => {
-            const nextDate = document.getElementById('next_service_date').value;
-            const customer = customers.find(c => c.firebaseId === activeCustomerId);
-            if (customer) {
-                const updatedData = { ...customer, nextService: nextDate };
-                const fid = updatedData.firebaseId;
-                delete updatedData.firebaseId; 
-                await set(ref(db, 'customers/' + fid), updatedData);
-                closeForm();
-            }
-        };
-
-        window.closeModal = () => document.getElementById('modal-overlay').classList.add('hidden');
-        window.closeForm = () => {
-            document.getElementById('service-screen').classList.add('hidden');
-            document.getElementById('main-screen').classList.remove('hidden');
-        };
-
-        document.addEventListener('DOMContentLoaded', () => {
-            document.getElementById('today-date').innerText = dayjs().format('DD/MM/YYYY');
-        });
     </script>
-
-    <style>
-        body { font-family: -apple-system, system-ui, sans-serif; background-color: #f1f5f9; }
-        .card { border-radius: 20px; }
-        input { border: 2px solid #e2e8f0; border-radius: 14px; padding: 14px; width: 100%; font-size: 16px; }
-        .btn-primary { background: #2563eb; color: white; border-radius: 16px; padding: 18px; font-weight: 700; width: 100%; }
-        .hidden { display: none; }
-        #modal-overlay { background: rgba(0,0,0,0.5); backdrop-filter: blur(6px); }
-    </style>
 </head>
-<body class="text-slate-900 pb-10">
-
-    <div id="main-screen" class="max-w-md mx-auto p-4">
-        <header class="flex justify-between items-end mb-8 pt-8 text-right">
+<body class="bg-slate-50 p-4">
+    <div class="max-w-md mx-auto">
+        <div class="flex justify-between items-center mb-6 pt-4 text-right">
             <div>
-                <h1 class="text-3xl font-black text-slate-900 tracking-tight">הבריכות שלי</h1>
-                <p id="today-date" class="text-blue-600 font-bold"></p>
+                <h1 class="text-2xl font-black">הבריכות שלי</h1>
             </div>
-            <button onclick="document.getElementById('modal-overlay').classList.remove('hidden')" class="bg-blue-600 text-white w-14 h-14 rounded-full text-4xl shadow-xl flex items-center justify-center">+</button>
-        </header>
+            <button onclick="toggleModal(true)" class="bg-blue-600 text-white w-12 h-12 rounded-full text-2xl shadow-lg">+</button>
+        </div>
         <div id="customer-list"></div>
     </div>
 
-    <div id="modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden text-right">
-        <div class="bg-white w-full max-sm rounded-3xl p-8 shadow-2xl">
-            <h3 class="text-2xl font-bold mb-6">הוספת לקוח חדש</h3>
-            <div class="space-y-4">
-                <input type="text" id="new_cust_name" placeholder="שם הלקוח">
-                <input type="text" id="new_cust_city" placeholder="יישוב">
-                <input type="tel" id="new_cust_phone" placeholder="טלפון">
-                <button onclick="saveNewCustomer()" class="btn-primary mt-4">שמור וסנכרן</button>
-                <button onclick="closeModal()" class="w-full text-slate-400 py-2 font-bold text-center">ביטול</button>
-            </div>
-        </div>
-    </div>
-
-    <div id="service-screen" class="max-w-md mx-auto p-4 hidden text-right">
-        <button onclick="closeForm()" class="text-blue-600 font-bold mb-8 flex items-center gap-2">חזרה</button>
-        <h2 id="current-customer-name" class="text-3xl font-black mb-10 border-b-4 border-blue-500 inline-block"></h2>
-        <div class="space-y-8">
-            <div class="bg-blue-600 p-6 rounded-3xl shadow-lg">
-                <label class="block text-sm font-bold text-blue-50 mb-3 underline">📅 מועד טיפול הבא:</label>
-                <input type="date" id="next_service_date" class="bg-white border-none font-bold text-blue-900">
-            </div>
-            <button onclick="saveServiceReport()" class="btn-primary shadow-2xl flex items-center justify-center gap-3">
-                <span>סיים טיפול ועדכן ענן</span>
-            </button>
+    <div id="modal-overlay" class="fixed inset-0 bg-black/50 backdrop-blur-sm flex items-center justify-center p-4 hidden">
+        <div class="bg-white w-full rounded-3xl p-6 text-right">
+            <h2 class="text-xl font-bold mb-4">לקוח חדש</h2>
+            <input type="text" id="new_cust_name" placeholder="שם הלקוח" class="w-full border p-3 rounded-xl mb-3 text-right">
+            <input type="text" id="new_cust_city" placeholder="יישוב" class="w-full border p-3 rounded-xl mb-3 text-right">
+            <input type="tel" id="new_cust_phone" placeholder="טלפון" class="w-full border p-3 rounded-xl mb-4 text-right">
+            <button id="save-btn" onclick="saveNewCustomer()" class="w-full bg-blue-600 text-white p-4 rounded-xl font-bold">שמור וסנכרן</button>
+            <button onclick="toggleModal(false)" class="w-full text-gray-400 py-3 mt-2">ביטול</button>
         </div>
     </div>
 </body>
