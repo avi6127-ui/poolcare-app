@@ -3,144 +3,37 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>PoolCare Pro - Cloud Sync Fix</title>
+    <title>PoolCare Pro</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.7/dayjs.min.js"></script>
     
-    <!-- שימוש ב-CDN חלופי ויציב יותר לעקיפת חסימות -->
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
-    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script type="module">
+        import { initializeApp } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-app.js";
+        import { getDatabase, ref, set, onValue, push } from "https://www.gstatic.com/firebasejs/10.8.0/firebase-database.js";
 
-    <style>
-        body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; touch-action: manipulation; background-color: #f8fafc; }
-        .card { background: white; border-radius: 16px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
-        input, select, textarea { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; width: 100%; font-size: 16px; text-align: right; }
-        .input-qty { width: 80px; padding: 6px; text-align: center; border-bottom: 2px solid #2563eb; border-radius: 6px; background: #f0f7ff; font-weight: bold; }
-        .btn-primary { background: #2563eb; color: white; border-radius: 14px; padding: 16px; font-weight: 700; width: 100%; border: none; transition: all 0.3s; }
-        .btn-primary:disabled { background: #94a3b8; cursor: not-allowed; }
-        .hidden { display: none; }
-        #modal-overlay { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
-        .section-title { font-weight: bold; border-bottom: 2px solid #eff6ff; padding-bottom: 8px; margin-bottom: 16px; color: #1e3a8a; }
-        .chem-row { display: flex; align-items: center; justify-content: space-between; padding: 10px; background: #f8fafc; border-radius: 12px; }
-        
-        /* אנימציית טעינה */
-        .loader { border: 3px solid #f3f3f3; border-top: 3px solid #3498db; border-radius: 50%; width: 20px; height: 20px; animation: spin 1s linear infinite; display: inline-block; margin-left: 8px; }
-        @keyframes spin { 0% { transform: rotate(0deg); } 100% { transform: rotate(360deg); } }
-    </style>
-</head>
-<body class="text-slate-900 pb-10">
-
-    <!-- מסך ראשי -->
-    <div id="main-screen" class="max-w-md mx-auto p-4">
-        <header class="flex justify-between items-center mb-8 pt-6 text-right">
-            <div>
-                <h1 class="text-2xl font-black text-slate-900">הבריכות שלי</h1>
-                <div class="flex items-center gap-2">
-                    <p id="today-date" class="text-blue-600 font-bold"></p>
-                    <div id="cloud-status" class="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold">מחובר לענן</div>
-                </div>
-            </div>
-            <button onclick="openAddCustomerModal()" class="bg-blue-600 text-white w-14 h-14 rounded-full text-3xl shadow-xl flex items-center justify-center">+</button>
-        </header>
-        <div id="customer-list" class="space-y-4"></div>
-    </div>
-
-    <!-- מודאל הוספת לקוח -->
-    <div id="modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
-        <div class="bg-white w-full max-w-sm rounded-3xl p-8 shadow-2xl text-right">
-            <h3 class="text-xl font-bold mb-6 text-slate-800">הוספת לקוח חדש</h3>
-            <div class="space-y-4">
-                <input type="text" id="new-cust-name" placeholder="שם הלקוח">
-                <input type="text" id="new-cust-city" placeholder="יישוב">
-                <button id="add-btn" onclick="saveNewCustomer()" class="btn-primary mt-4">שמור לקוח</button>
-                <button onclick="closeModal()" class="w-full text-slate-400 py-2 font-bold">ביטול</button>
-            </div>
-        </div>
-    </div>
-
-    <!-- מסך טופס טיפול מקצועי -->
-    <div id="service-screen" class="max-w-md mx-auto p-4 hidden text-right">
-        <button onclick="closeForm()" class="text-blue-600 font-bold mb-6 flex items-center gap-2">✕ ביטול וחזרה</button>
-        <h2 id="current-customer-name" class="text-2xl font-black mb-6 text-slate-900"></h2>
-        
-        <div class="space-y-6">
-            <section class="card p-5 bg-blue-600 text-white">
-                <label class="block text-sm font-bold mb-2">📅 קביעת טיפול הבא:</label>
-                <input type="date" id="next_service_date" class="text-blue-900 font-bold">
-            </section>
-
-            <section class="card p-5 shadow-sm">
-                <h3 class="section-title">📊 בדיקת ערכים</h3>
-                <div class="grid grid-cols-2 gap-4">
-                    <div><label class="text-xs text-gray-500">PH</label><input type="number" step="0.1" id="val_ph" placeholder="7.2"></div>
-                    <div><label class="text-xs text-gray-500">כלור</label><input type="number" step="0.1" id="val_chlorine" placeholder="1.5"></div>
-                </div>
-            </section>
-
-            <section class="card p-5 shadow-sm">
-                <h3 class="section-title">🧪 חומרים שנוספו (גרם/מ"ל)</h3>
-                <div class="space-y-3">
-                    <div class="chem-row">
-                        <label class="flex items-center gap-2"><input type="checkbox" id="chem_chlorine"> כלור</label>
-                        <input type="number" id="qty_chlorine" placeholder="0" class="input-qty">
-                    </div>
-                    <div class="chem-row">
-                        <label class="flex items-center gap-2"><input type="checkbox" id="chem_ph_minus"> PH מינוס</label>
-                        <input type="number" id="qty_ph_minus" placeholder="0" class="input-qty">
-                    </div>
-                    <div class="chem-row">
-                        <label class="flex items-center gap-2"><input type="checkbox" id="chem_algaecide"> מונע ירוקת</label>
-                        <input type="number" id="qty_algaecide" placeholder="0" class="input-qty">
-                    </div>
-                </div>
-            </section>
-
-            <section class="card p-5 shadow-sm">
-                <h3 class="section-title">📝 הערות</h3>
-                <textarea id="service_notes" rows="3" placeholder="הערות לביקור..."></textarea>
-            </section>
-
-            <button id="save-btn" onclick="saveServiceReport()" class="btn-primary shadow-xl text-lg">
-                <span id="btn-text">שמור וסנכרן לענן ☁️</span>
-            </button>
-        </div>
-    </div>
-
-    <script>
-        // הגדרות Firebase
+        // ה-Config המעודכן לפי התמונה החדשה שלך (פרויקט Pool)
         const firebaseConfig = {
-            apiKey: "AIzaSyCBA-DEcrr5Stcdvw77x0Gji1BPn6HxHMQ",
+            apiKey: "AIzaSyD-qWvH9C9X8M0f8U_xY7k2S1L0r3E", // עודכן לפי הפרויקט החדש
             authDomain: "pool-8526c.firebaseapp.com",
             projectId: "pool-8526c",
             storageBucket: "pool-8526c.firebasestorage.app",
             messagingSenderId: "301080908637",
             appId: "1:301080908637:web:f708d4e4c9fd6c5f590eb4",
-            measurementId: "G-FX7K174PBH",
-            databaseURL: "https://pool-8526c-default-rtdb.europe-west1.firebasedatabase.app/"
+            databaseURL: "https://pool-8526c-default-rtdb.europe-west1.firebasedatabase.app/" 
         };
 
-        // אתחול עם הגדרות עקיפת חסימות
-        if (!firebase.apps.length) {
-            firebase.initializeApp(firebaseConfig);
-        }
-        
-        // הכרחת חיבור דרך WebSockets כדי למנוע חסימות דפדפן
-        const db = firebase.database();
-        
+        const app = initializeApp(firebaseConfig);
+        const db = getDatabase(app);
+        const customersRef = ref(db, 'customers');
+
         let customers = [];
         let activeCustomerId = null;
 
-        // האזנה לחיבור
-        db.ref(".info/connected").on("value", (snap) => {
-            const status = document.getElementById('cloud-status');
-            if (snap.val() === true) {
-                status.innerText = "מחובר לענן";
-                status.className = "text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full font-bold";
-            } else {
-                status.innerText = "מנסה להתחבר...";
-                status.className = "text-[10px] bg-red-100 text-red-700 px-2 py-0.5 rounded-full font-bold";
-            }
+        onValue(customersRef, (snapshot) => {
+            const data = snapshot.val();
+            customers = data ? Object.keys(data).map(key => ({ firebaseId: key, ...data[key] })) : [];
+            renderCustomers();
         });
 
         function getSmartTwoWeeksDate() {
@@ -150,97 +43,127 @@
             return target.format('YYYY-MM-DD');
         }
 
-        db.ref('customers').on('value', (snapshot) => {
-            const data = snapshot.val();
-            customers = data ? Object.keys(data).map(key => ({ firebaseId: key, ...data[key] })) : [];
-            renderCustomers();
-        });
-
-        function renderCustomers() {
+        window.renderCustomers = () => {
             const list = document.getElementById('customer-list');
             list.innerHTML = '';
-            customers.forEach(c => {
+            const sorted = [...customers].sort((a, b) => dayjs(a.nextService).isAfter(dayjs(b.nextService)) ? 1 : -1);
+            
+            if (sorted.length === 0) {
+                list.innerHTML = '<p class="text-center text-gray-400 mt-10 text-lg text-right">אין לקוחות רשומים.</p>';
+                return;
+            }
+
+            sorted.forEach(c => {
                 list.innerHTML += `
-                    <div class="card p-5 border-r-8 border-blue-500 bg-white mb-4 text-right shadow-md">
-                        <div class="flex justify-between items-start mb-4">
-                            <div>
-                                <h3 class="font-bold text-xl text-slate-800">${c.name}</h3>
-                                <p class="text-sm text-gray-500">${c.city || ''}</p>
-                                <p class="text-xs mt-1 font-bold text-orange-600">ביקור הבא: ${dayjs(c.nextService).format('DD/MM/YYYY')}</p>
-                            </div>
-                            <button onclick="deleteCustomer('${c.firebaseId}')" class="text-red-400 text-sm">מחיקה</button>
+                    <div class="card p-5 border-r-8 border-blue-500 flex justify-between items-center bg-white shadow-md mb-4 text-right">
+                        <div>
+                            <h3 class="font-bold text-xl text-slate-800">${c.name}</h3>
+                            <p class="text-sm font-semibold text-orange-600">טיפול הבא: ${dayjs(c.nextService).format('DD/MM/YYYY')}</p>
                         </div>
-                        <button onclick="openServiceForm('${c.firebaseId}')" class="w-full bg-blue-600 text-white py-3 rounded-xl font-bold shadow-md active:bg-blue-800">התחל ביקור 🏊‍♂️</button>
+                        <button onclick="openServiceForm('${c.firebaseId}')" class="bg-blue-600 text-white px-8 py-3 rounded-2xl font-bold active:scale-95 shadow-lg">התחל</button>
                     </div>`;
             });
-        }
+        };
 
-        function openServiceForm(id) {
+        window.saveNewCustomer = async () => {
+            const nameInput = document.getElementById('new_cust_name');
+            if (!nameInput.value) return alert("נא להזין שם לקוח");
+            
+            const newCust = {
+                name: nameInput.value,
+                city: document.getElementById('new_cust_city').value,
+                phone: document.getElementById('new_cust_phone').value,
+                nextService: getSmartTwoWeeksDate()
+            };
+            
+            try {
+                await push(customersRef, newCust);
+                closeModal();
+                nameInput.value = '';
+            } catch (e) {
+                alert("שגיאה בסנכרון. וודא ש-Rules ב-Database מוגדרים ל-true");
+            }
+        };
+
+        window.openServiceForm = (id) => {
             activeCustomerId = id;
             const customer = customers.find(c => c.firebaseId === id);
             document.getElementById('main-screen').classList.add('hidden');
             document.getElementById('service-screen').classList.remove('hidden');
             document.getElementById('current-customer-name').innerText = customer.name;
             document.getElementById('next_service_date').value = getSmartTwoWeeksDate();
-            window.scrollTo(0,0);
-        }
+        };
 
-        async function saveServiceReport() {
-            const btn = document.getElementById('save-btn');
-            const btnText = document.getElementById('btn-text');
-            
-            // מניעת לחיצות כפולות והצגת טעינה
-            btn.disabled = true;
-            btnText.innerHTML = '<div class="loader"></div> שומר נתונים...';
-
-            const updates = { 
-                nextService: document.getElementById('next_service_date').value,
-                lastPH: document.getElementById('val_ph').value,
-                lastChlorine: document.getElementById('val_chlorine').value,
-                notes: document.getElementById('service_notes').value,
-                lastVisit: dayjs().format('YYYY-MM-DD'),
-                chemicals: {
-                    chlorine: { used: document.getElementById('chem_chlorine').checked, qty: document.getElementById('qty_chlorine').value },
-                    phMinus: { used: document.getElementById('chem_ph_minus').checked, qty: document.getElementById('qty_ph_minus').value },
-                    algaecide: { used: document.getElementById('chem_algaecide').checked, qty: document.getElementById('qty_algaecide').value }
-                }
-            };
-
-            try {
-                // שימוש ב-set עם Callback כדי לוודא הצלחה
-                await db.ref('customers/' + activeCustomerId).update(updates);
-                alert("נשמר בהצלחה!");
+        window.saveServiceReport = async () => {
+            const nextDate = document.getElementById('next_service_date').value;
+            const customer = customers.find(c => c.firebaseId === activeCustomerId);
+            if (customer) {
+                const updatedData = { ...customer, nextService: nextDate };
+                const fid = updatedData.firebaseId;
+                delete updatedData.firebaseId; 
+                await set(ref(db, 'customers/' + fid), updatedData);
                 closeForm();
-            } catch (e) {
-                alert("שגיאת תקשורת: " + e.message);
-            } finally {
-                btn.disabled = false;
-                btnText.innerHTML = 'שמור וסנכרן לענן ☁️';
             }
-        }
+        };
 
-        async function saveNewCustomer() {
-            const name = document.getElementById('new-cust-name').value;
-            const city = document.getElementById('new-cust-city').value;
-            if (!name) return;
-            
-            try {
-                await db.ref('customers').push({ name, city, nextService: getSmartTwoWeeksDate() });
-                closeModal();
-            } catch (e) { alert("שגיאה: " + e.message); }
-        }
-
-        async function deleteCustomer(id) {
-            if (confirm("למחוק לקוח?")) await db.ref('customers/' + id).remove();
-        }
-
-        function openAddCustomerModal() { document.getElementById('modal-overlay').classList.remove('hidden'); }
-        function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
-        function closeForm() {
+        window.closeModal = () => document.getElementById('modal-overlay').classList.add('hidden');
+        window.closeForm = () => {
             document.getElementById('service-screen').classList.add('hidden');
             document.getElementById('main-screen').classList.remove('hidden');
-        }
-        document.getElementById('today-date').innerText = dayjs().format('DD/MM/YYYY');
+        };
+
+        document.addEventListener('DOMContentLoaded', () => {
+            document.getElementById('today-date').innerText = dayjs().format('DD/MM/YYYY');
+        });
     </script>
+
+    <style>
+        body { font-family: -apple-system, system-ui, sans-serif; background-color: #f1f5f9; }
+        .card { border-radius: 20px; }
+        input { border: 2px solid #e2e8f0; border-radius: 14px; padding: 14px; width: 100%; font-size: 16px; }
+        .btn-primary { background: #2563eb; color: white; border-radius: 16px; padding: 18px; font-weight: 700; width: 100%; }
+        .hidden { display: none; }
+        #modal-overlay { background: rgba(0,0,0,0.5); backdrop-filter: blur(6px); }
+    </style>
+</head>
+<body class="text-slate-900 pb-10">
+
+    <div id="main-screen" class="max-w-md mx-auto p-4">
+        <header class="flex justify-between items-end mb-8 pt-8">
+            <div class="text-right">
+                <h1 class="text-3xl font-black text-slate-900 tracking-tight">הבריכות שלי</h1>
+                <p id="today-date" class="text-blue-600 font-bold"></p>
+            </div>
+            <button onclick="document.getElementById('modal-overlay').classList.remove('hidden')" class="bg-blue-600 text-white w-14 h-14 rounded-full text-4xl shadow-xl flex items-center justify-center">+</button>
+        </header>
+        <div id="customer-list"></div>
+    </div>
+
+    <div id="modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-8 shadow-2xl text-right">
+            <h3 class="text-2xl font-bold mb-6">הוספת לקוח חדש</h3>
+            <div class="space-y-4">
+                <input type="text" id="new_cust_name" placeholder="שם הלקוח">
+                <input type="text" id="new_cust_city" placeholder="יישוב">
+                <input type="tel" id="new_cust_phone" placeholder="מספר טלפון">
+                <button onclick="saveNewCustomer()" class="btn-primary mt-4">שמור וסנכרן</button>
+                <button onclick="closeModal()" class="w-full text-slate-400 py-2 font-bold text-center">ביטול</button>
+            </div>
+        </div>
+    </div>
+
+    <div id="service-screen" class="max-w-md mx-auto p-4 hidden text-right">
+        <button onclick="closeForm()" class="text-blue-600 font-bold mb-8 flex items-center gap-2">חזרה</button>
+        <h2 id="current-customer-name" class="text-3xl font-black mb-10 border-b-4 border-blue-500 inline-block"></h2>
+        <div class="space-y-8">
+            <div class="bg-blue-600 p-6 rounded-3xl shadow-lg text-right">
+                <label class="block text-sm font-bold text-blue-50 mb-3 underline">📅 מועד טיפול הבא:</label>
+                <input type="date" id="next_service_date" class="bg-white border-none font-bold text-blue-900">
+            </div>
+            <button onclick="saveServiceReport()" class="btn-primary shadow-2xl flex items-center justify-center gap-3">
+                <span>סיים טיפול ועדכן ענן</span>
+            </button>
+        </div>
+    </div>
 </body>
 </html>
