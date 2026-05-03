@@ -3,19 +3,26 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <meta name="apple-mobile-web-app-capable" content="yes">
+    <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+    <meta name="theme-color" content="#2563eb">
+    
     <title>PoolCare Pro - Professional</title>
     
     <script src="https://cdn.tailwindcss.com"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/dayjs/1.11.7/dayjs.min.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-app-compat.js"></script>
     <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-database-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/9.23.0/firebase-storage-compat.js"></script>
 
     <style>
         body { font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif; touch-action: manipulation; background-color: #f8fafc; }
         .card { background: white; border-radius: 16px; box-shadow: 0 4px 6px -1px rgb(0 0 0 / 0.1); }
         input, select, textarea { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; width: 100%; font-size: 16px; text-align: right; }
+        input:focus, textarea:focus { font-size: 16px !important; outline: none; border-color: #2563eb; }
         .input-qty { width: 80px; padding: 6px; text-align: center; border-bottom: 2px solid #2563eb; border-radius: 6px; background: #f0f7ff; font-weight: bold; }
-        .btn-primary { background: #2563eb; color: white; border-radius: 14px; padding: 16px; font-weight: 700; width: 100%; border: none; }
+        .btn-primary { background: #2563eb; color: white; border-radius: 14px; padding: 16px; font-weight: 700; width: 100%; border: none; transition: opacity 0.2s; }
+        .btn-primary:disabled { opacity: 0.7; cursor: not-allowed; }
         .btn-delete { color: #ef4444; font-weight: bold; padding: 8px; }
         .btn-edit { color: #2563eb; font-weight: bold; padding: 8px; }
         .hidden { display: none; }
@@ -30,11 +37,16 @@
 
     <!-- מסך ראשי -->
     <div id="main-screen" class="max-w-md mx-auto p-4">
-        <header class="flex justify-between items-center mb-6 pt-6 text-right">
+        <header class="flex justify-between items-start mb-6 pt-6 text-right">
             <div>
                 <h1 class="text-2xl font-black text-slate-900">הבריכות שלי</h1>
                 <p id="today-date" class="text-blue-600 font-bold"></p>
-                <button onclick="openSchedule()" class="mt-2 text-blue-600 font-bold border-2 border-blue-600 px-4 py-1 rounded-full text-sm">📅 לו"ז טיפולים</button>
+                <div id="sync-status" class="text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full inline-flex items-center gap-1 mt-1">
+                    <span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> מסונכרן לענן
+                </div>
+                <div class="block mt-2">
+                    <button onclick="openSchedule()" class="text-blue-600 font-bold border-2 border-blue-600 px-4 py-1 rounded-full text-sm">📅 לו"ז טיפולים</button>
+                </div>
             </div>
             <button onclick="openAddCustomerModal()" class="bg-blue-600 text-white w-14 h-14 rounded-full text-3xl shadow-xl flex items-center justify-center">+</button>
         </header>
@@ -100,11 +112,25 @@
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs mb-1 text-gray-500">PH (7.2-7.6)</label>
-                            <input type="number" step="0.1" id="val_ph" placeholder="7.2">
+                            <input type="number" step="0.1" id="val_ph" placeholder="7.2" oninput="validateRange(this, 7.2, 7.6)">
                         </div>
                         <div>
                             <label class="block text-xs mb-1 text-gray-500">כלור (1.5-3.0)</label>
-                            <input type="number" step="0.1" id="val_chlorine" placeholder="1.5">
+                            <input type="number" step="0.1" id="val_chlorine" placeholder="1.5" oninput="validateRange(this, 1.5, 3.0)">
+                        </div>
+                    </div>
+                </section>
+
+                <section class="card p-5 shadow-sm">
+                    <h3 class="section-title">📸 צילום הבריכה</h3>
+                    <div class="flex flex-col items-center gap-4">
+                        <input type="file" id="photo_input" accept="image/*" capture="environment" class="hidden" onchange="previewImage(this)">
+                        <button type="button" onclick="document.getElementById('photo_input').click()" class="w-full bg-slate-100 border-2 border-dashed border-slate-300 py-4 rounded-xl text-slate-600 font-bold flex items-center justify-center gap-2">
+                            📷 צלם תמונה או העלה
+                        </button>
+                        <div id="image_preview_container" class="hidden w-full relative">
+                            <img id="image_preview" src="" class="w-full h-48 object-cover rounded-xl shadow-md border">
+                            <button type="button" onclick="clearImage()" class="absolute top-2 left-2 bg-red-600 text-white rounded-full p-2 text-xs">✕ הסר</button>
                         </div>
                     </div>
                 </section>
@@ -171,7 +197,7 @@
                     <textarea id="service_notes" rows="3" placeholder="הערות לביקור..."></textarea>
                 </section>
 
-                <button type="button" onclick="saveServiceReport()" class="btn-primary shadow-xl text-lg mb-10">סיום טיפול וסנכרון ☁️</button>
+                <button id="save-btn" type="button" onclick="saveServiceReport()" class="btn-primary shadow-xl text-lg mb-10">סיום טיפול וסנכרון ☁️</button>
             </div>
         </form>
     </div>
@@ -181,15 +207,31 @@
             apiKey: "AIzaSyCBA-DEcrr5Stcdvw77x0Gji1BPn6HxHMQ",
             authDomain: "pool-8526c.firebaseapp.com",
             projectId: "pool-8526c",
-            databaseURL: "https://pool-8526c-default-rtdb.europe-west1.firebasedatabase.app/"
+            databaseURL: "https://pool-8526c-default-rtdb.europe-west1.firebasedatabase.app/",
+            storageBucket: "pool-8526c.appspot.com"
         };
 
         if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
         const db = firebase.database();
+        const storage = firebase.storage();
         const customersRef = db.ref('customers');
 
         let customers = [];
         let activeCustomerId = null;
+        let selectedFile = null;
+
+        // ניהול סטטוס חיבור
+        const connectedRef = db.ref(".info/connected");
+        connectedRef.on("value", (snap) => {
+            const statusDiv = document.getElementById('sync-status');
+            if (snap.val() === true) {
+                statusDiv.innerHTML = '<span class="w-1.5 h-1.5 bg-green-500 rounded-full"></span> מסונכרן לענן';
+                statusDiv.className = "text-[10px] bg-green-100 text-green-700 px-2 py-0.5 rounded-full inline-flex items-center gap-1 mt-1";
+            } else {
+                statusDiv.innerHTML = '<span class="w-1.5 h-1.5 bg-amber-500 rounded-full animate-pulse"></span> עובד אופליין';
+                statusDiv.className = "text-[10px] bg-amber-100 text-amber-700 px-2 py-0.5 rounded-full inline-flex items-center gap-1 mt-1";
+            }
+        });
 
         function getSmartTwoWeeksDate() {
             let target = dayjs().add(14, 'day');
@@ -215,7 +257,10 @@
                             <div>
                                 <h3 class="font-bold text-xl text-slate-800">${c.name}</h3>
                                 <p class="text-sm text-gray-500">${c.city || 'אין כתובת'}</p>
-                                <button onclick="showHistory('${c.firebaseId}')" class="text-blue-600 text-xs font-bold mt-1 block">📜 צפה בהיסטוריה מפורטת</button>
+                                <div class="flex gap-4 mt-2">
+                                    <button onclick="showHistory('${c.firebaseId}')" class="text-blue-600 text-xs font-bold">📜 היסטוריה</button>
+                                    <a href="tel:${c.phone}" class="text-green-600 text-xs font-bold underline">📞 התקשר</a>
+                                </div>
                             </div>
                             <div class="flex flex-col">
                                 <button onclick="openEditCustomerModal('${c.firebaseId}')" class="btn-edit text-xs">עריכה ✏️</button>
@@ -225,6 +270,48 @@
                         <button onclick="openServiceForm('${c.firebaseId}')" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg">התחל ביקור 🏊‍♂️</button>
                     </div>`;
             });
+        }
+
+        function validateRange(el, min, max) {
+            const val = parseFloat(el.value);
+            if (val < min || val > max) {
+                el.style.backgroundColor = '#fef2f2';
+                el.style.borderColor = '#ef4444';
+            } else {
+                el.style.backgroundColor = '#f0fdf4';
+                el.style.borderColor = '#22c55e';
+            }
+        }
+
+        function previewImage(input) {
+            if (input.files && input.files[0]) {
+                selectedFile = input.files[0];
+                const reader = new FileReader();
+                reader.onload = function(e) {
+                    document.getElementById('image_preview').src = e.target.result;
+                    document.getElementById('image_preview_container').classList.remove('hidden');
+                }
+                reader.readAsDataURL(input.files[0]);
+            }
+        }
+
+        function clearImage() {
+            selectedFile = null;
+            document.getElementById('photo_input').value = "";
+            document.getElementById('image_preview_container').classList.add('hidden');
+        }
+
+        async function uploadPhoto(customerId) {
+            if (!selectedFile) return null;
+            try {
+                const fileName = `pools/${customerId}/${dayjs().format('YYYY-MM-DD_HH-mm')}.jpg`;
+                const storageRef = storage.ref(fileName);
+                const snapshot = await storageRef.put(selectedFile);
+                return await snapshot.ref.getDownloadURL();
+            } catch (e) {
+                console.error("Photo upload failed", e);
+                return null;
+            }
         }
 
         function showHistory(id) {
@@ -242,9 +329,9 @@
                         if(h.chems.phMinus?.qty) chemList.push(`PH-: ${h.chems.phMinus.qty}ג'`);
                         if(h.chems.algaecide?.qty) chemList.push(`מונע ירוקת: ${h.chems.algaecide.qty}מ"ל`);
                         if(h.chems.clarifier?.qty) chemList.push(`מצליל: ${h.chems.clarifier.qty}מ"ל`);
-                        if(h.chems.replacedAcid) chemList.push(`<span class="text-blue-700 font-bold">🔄 הוחלף גלון חומצה</span>`);
-                        if(h.chems.replacedChlorine) chemList.push(`<span class="text-blue-700 font-bold">🔄 הוחלף גלון כלור</span>`);
-                        if(h.chems.saltQty > 0) chemList.push(`<span class="text-green-700 font-bold">🧂 סופקו ${h.chems.saltQty} שקי מלח</span>`);
+                        if(h.chems.replacedAcid) chemList.push(`<span class="text-blue-700 font-bold">🔄 גלון חומצה</span>`);
+                        if(h.chems.replacedChlorine) chemList.push(`<span class="text-blue-700 font-bold">🔄 גלון כלור</span>`);
+                        if(h.chems.saltQty > 0) chemList.push(`<span class="text-green-700 font-bold">🧂 ${h.chems.saltQty} שקי מלח</span>`);
                     }
 
                     content.innerHTML += `
@@ -253,6 +340,7 @@
                                 <span>📅 ${dayjs(h.date).format('DD/MM/YY')}</span>
                                 <span>PH: ${h.ph || '-'} | CL: ${h.cl || '-'}</span>
                             </div>
+                            ${h.photo ? `<div class="mb-2"><img src="${h.photo}" class="w-full h-32 object-cover rounded-lg shadow-sm" onclick="window.open('${h.photo}')"></div>` : ''}
                             <div class="mb-1"><span class="font-bold">🧪 חומרים:</span> ${chemList.length > 0 ? chemList.join(", ") : "לא נוספו"}</div>
                             <div class="mb-1"><span class="font-bold">🛠️ ביצוע:</span> ${h.tasksPerformed || "טיפול שגרתי"}</div>
                             ${h.notes ? `<div class="mt-2 p-2 bg-yellow-50 rounded italic text-gray-700">"${h.notes}"</div>` : ''}
@@ -263,40 +351,61 @@
         }
 
         async function saveServiceReport() {
-            const tasks = [];
-            if(document.getElementById('task_filter').checked) tasks.push("שטיפה");
-            if(document.getElementById('task_skimmer').checked) tasks.push("סקימרים");
-            if(document.getElementById('task_vacuum').checked) tasks.push("שאיבה");
+            const btn = document.getElementById('save-btn');
+            const originalText = btn.innerText;
+            
+            try {
+                btn.innerText = "מעלה נתונים... ⏳";
+                btn.disabled = true;
 
-            const reportEntry = {
-                date: dayjs().format('YYYY-MM-DD HH:mm'),
-                ph: document.getElementById('val_ph').value,
-                cl: document.getElementById('val_chlorine').value,
-                notes: document.getElementById('service_notes').value,
-                tasksPerformed: tasks.join(", "),
-                chems: {
-                    hth: { qty: document.getElementById('qty_hth').value },
-                    chlorine: { qty: document.getElementById('qty_chlorine').value },
-                    phMinus: { qty: document.getElementById('qty_ph_minus').value },
-                    algaecide: { qty: document.getElementById('qty_algaecide').value },
-                    clarifier: { qty: document.getElementById('qty_clarifier').value },
-                    replacedAcid: document.getElementById('replace_acid').checked,
-                    replacedChlorine: document.getElementById('replace_chlorine').checked,
-                    saltQty: document.getElementById('qty_salt').value
-                }
-            };
+                const photoUrl = await uploadPhoto(activeCustomerId);
 
-            await db.ref('customers/' + activeCustomerId + '/history').push(reportEntry);
-            await db.ref('customers/' + activeCustomerId).update({ 
-                nextService: document.getElementById('next_service_date').value, 
-                lastVisit: dayjs().format('YYYY-MM-DD') 
-            });
-            alert("נשמר בהצלחה!");
-            closeForm();
+                const tasks = [];
+                if(document.getElementById('task_filter').checked) tasks.push("שטיפה");
+                if(document.getElementById('task_skimmer').checked) tasks.push("סקימרים");
+                if(document.getElementById('task_vacuum').checked) tasks.push("שאיבה");
+
+                const reportEntry = {
+                    date: dayjs().format('YYYY-MM-DD HH:mm'),
+                    ph: document.getElementById('val_ph').value,
+                    cl: document.getElementById('val_chlorine').value,
+                    notes: document.getElementById('service_notes').value,
+                    tasksPerformed: tasks.join(", "),
+                    photo: photoUrl || null,
+                    chems: {
+                        hth: { qty: document.getElementById('qty_hth').value },
+                        chlorine: { qty: document.getElementById('qty_chlorine').value },
+                        phMinus: { qty: document.getElementById('qty_ph_minus').value },
+                        algaecide: { qty: document.getElementById('qty_algaecide').value },
+                        clarifier: { qty: document.getElementById('qty_clarifier').value },
+                        replacedAcid: document.getElementById('replace_acid').checked,
+                        replacedChlorine: document.getElementById('replace_chlorine').checked,
+                        saltQty: document.getElementById('qty_salt').value
+                    }
+                };
+
+                await db.ref('customers/' + activeCustomerId + '/history').push(reportEntry);
+                await db.ref('customers/' + activeCustomerId).update({ 
+                    nextService: document.getElementById('next_service_date').value, 
+                    lastVisit: dayjs().format('YYYY-MM-DD') 
+                });
+                
+                alert("נשמר בהצלחה!");
+                clearImage();
+                closeForm();
+            } catch (e) {
+                alert("שגיאה בשמירה: " + e.message);
+            } finally {
+                btn.innerText = originalText;
+                btn.disabled = false;
+            }
         }
 
         function closeForm() { 
             document.getElementById('service-form').reset();
+            document.getElementById('val_ph').style.backgroundColor = '';
+            document.getElementById('val_chlorine').style.backgroundColor = '';
+            clearImage();
             document.getElementById('service-screen').classList.add('hidden'); 
             document.getElementById('main-screen').classList.remove('hidden'); 
         }
@@ -309,6 +418,7 @@
             });
             document.getElementById('schedule-modal').classList.remove('hidden');
         }
+
         function openServiceForm(id) {
             activeCustomerId = id;
             const c = customers.find(curr => curr.firebaseId === id);
@@ -316,30 +426,59 @@
             document.getElementById('next_service_date').value = getSmartTwoWeeksDate();
             document.getElementById('main-screen').classList.add('hidden');
             document.getElementById('service-screen').classList.remove('hidden');
+            window.scrollTo(0,0);
         }
+
         function goToService(id) { document.getElementById('schedule-modal').classList.add('hidden'); openServiceForm(id); }
-        function openAddCustomerModal() { document.getElementById('modal-overlay').classList.remove('hidden'); }
+        
+        function openAddCustomerModal() { 
+            document.getElementById('modal-title').innerText = "הוספת לקוח חדש";
+            document.getElementById('edit-cust-id').value = "";
+            document.getElementById('new-cust-name').value = "";
+            document.getElementById('new-cust-city').value = "";
+            document.getElementById('new-cust-phone').value = "";
+            document.getElementById('modal-overlay').classList.remove('hidden'); 
+        }
+
+        function openEditCustomerModal(id) {
+            const c = customers.find(curr => curr.firebaseId === id);
+            document.getElementById('modal-title').innerText = "עריכת לקוח: " + c.name;
+            document.getElementById('edit-cust-id').value = id;
+            document.getElementById('new-cust-name').value = c.name;
+            document.getElementById('new-cust-city').value = c.city || '';
+            document.getElementById('new-cust-phone').value = c.phone || '';
+            document.getElementById('modal-overlay').classList.remove('hidden');
+        }
+
         function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
         function closeHistory() { document.getElementById('history-modal').classList.add('hidden'); }
         function closeSchedule() { document.getElementById('schedule-modal').classList.add('hidden'); }
+
         async function saveCustomer() {
-            const data = { name: document.getElementById('new-cust-name').value, city: document.getElementById('new-cust-city').value, phone: document.getElementById('new-cust-phone').value, nextService: getSmartTwoWeeksDate() };
-            await customersRef.push(data); closeModal();
+            const id = document.getElementById('edit-cust-id').value;
+            const data = { 
+                name: document.getElementById('new-cust-name').value, 
+                city: document.getElementById('new-cust-city').value, 
+                phone: document.getElementById('new-cust-phone').value 
+            };
+            
+            if (id) {
+                await db.ref('customers/' + id).update(data);
+            } else {
+                data.nextService = getSmartTwoWeeksDate();
+                await customersRef.push(data);
+            }
+            closeModal();
         }
 
-        // פונקציית מחיקה עם הגנת מנהל
         async function deleteCustomer(id, name) { 
-            const pin = prompt(`כדי למחוק את ${name}, הזן קוד מנהל:`);
-            if (pin === "1234") { // כאן ניתן לשנות את הקוד הסודי
-                if (confirm(`האם אתה בטוח שברצונך למחוק את ${name}?`)) {
-                    await db.ref('customers/' + id).remove();
-                    alert("הלקוח נמחק בהצלחה.");
-                }
-            } else if (pin !== null) {
-                alert("קוד שגוי. אין לך הרשאה למחוק לקוחות.");
+            const password = prompt(`בטוח שברצונך למחוק את ${name}?\nהזן סיסמה לביצוע:`);
+            if (password === "1234") {
+                await db.ref('customers/' + id).remove(); 
+                alert("נמחק.");
             }
         }
-        
+
         document.getElementById('today-date').innerText = dayjs().format('DD/MM/YYYY');
     </script>
 </body>
