@@ -16,118 +16,164 @@
         input, select, textarea { border: 1px solid #e2e8f0; border-radius: 12px; padding: 12px; width: 100%; font-size: 16px; text-align: right; }
         .input-qty { width: 80px; padding: 6px; text-align: center; border-bottom: 2px solid #2563eb; border-radius: 6px; background: #f0f7ff; font-weight: bold; }
         .btn-primary { background: #2563eb; color: white; border-radius: 14px; padding: 16px; font-weight: 700; width: 100%; border: none; }
-        .btn-delete { color: #ef4444; font-weight: bold; padding: 8px; font-size: 14px; }
+        .btn-delete { color: #ef4444; font-weight: bold; padding: 8px; }
+        .btn-edit { color: #2563eb; font-weight: bold; padding: 8px; }
         .hidden { display: none; }
-        #modal-overlay { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); }
+        .modal-bg { background: rgba(0,0,0,0.5); backdrop-filter: blur(4px); position: fixed; inset: 0; z-index: 50; display: flex; align-items: center; justify-content: center; padding: 16px; }
         .section-title { font-weight: bold; border-bottom: 2px solid #eff6ff; padding-bottom: 8px; margin-bottom: 16px; color: #1e3a8a; }
         .chem-row { display: flex; align-items: center; justify-content: space-between; padding: 10px; background: #f8fafc; border-radius: 12px; }
+        .history-item { border-right: 4px solid #2563eb; background: #f1f5f9; padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
+        .sched-item { border-bottom: 1px solid #f1f5f9; padding: 12px 0; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
     </style>
 </head>
 <body class="text-slate-900 pb-10">
 
     <!-- מסך ראשי -->
     <div id="main-screen" class="max-w-md mx-auto p-4">
-        <header class="flex justify-between items-center mb-8 pt-6 text-right">
+        <header class="flex justify-between items-center mb-6 pt-6 text-right">
             <div>
                 <h1 class="text-2xl font-black text-slate-900">הבריכות שלי</h1>
                 <p id="today-date" class="text-blue-600 font-bold"></p>
+                <button onclick="openSchedule()" class="mt-2 text-blue-600 font-bold border-2 border-blue-600 px-4 py-1 rounded-full text-sm">📅 לו"ז טיפולים</button>
             </div>
             <button onclick="openAddCustomerModal()" class="bg-blue-600 text-white w-14 h-14 rounded-full text-3xl shadow-xl flex items-center justify-center">+</button>
         </header>
+
+        <div class="mb-6 text-right">
+            <input type="text" id="search-input" oninput="renderCustomers()" placeholder="חפש לקוח לפי שם או עיר..." class="shadow-sm">
+        </div>
+
         <div id="customer-list" class="space-y-4"></div>
     </div>
 
-    <!-- מודאל הוספת לקוח -->
-    <div id="modal-overlay" class="fixed inset-0 z-50 flex items-center justify-center p-4 hidden">
+    <!-- מודאל לו"ז -->
+    <div id="schedule-modal" class="modal-bg hidden">
+        <div class="bg-white w-full max-w-sm rounded-3xl p-6 shadow-2xl text-right flex flex-col max-h-[80vh]">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h3 class="text-xl font-bold">סדר טיפולים קרוב</h3>
+                <button onclick="closeSchedule()" class="text-2xl">✕</button>
+            </div>
+            <div id="schedule-content" class="overflow-y-auto pr-1"></div>
+        </div>
+    </div>
+
+    <!-- מודאל הוספה/עריכה -->
+    <div id="modal-overlay" class="modal-bg hidden">
         <div class="bg-white w-full max-w-sm rounded-3xl p-8 shadow-2xl text-right">
-            <h3 class="text-xl font-bold mb-6 text-slate-800">הוספת לקוח חדש</h3>
+            <h3 id="modal-title" class="text-xl font-bold mb-6 text-slate-800">הוספת לקוח חדש</h3>
             <div class="space-y-4">
+                <input type="hidden" id="edit-cust-id">
                 <input type="text" id="new-cust-name" placeholder="שם הלקוח">
                 <input type="text" id="new-cust-city" placeholder="יישוב">
-                <button onclick="saveNewCustomer()" class="btn-primary mt-4">שמור וסנכרן ☁️</button>
+                <input type="tel" id="new-cust-phone" placeholder="מספר טלפון">
+                <button onclick="saveCustomer()" class="btn-primary mt-4">שמור וסנכרן ☁️</button>
                 <button onclick="closeModal()" class="w-full text-slate-400 py-2 font-bold">ביטול</button>
             </div>
         </div>
     </div>
 
-    <!-- מסך טופס טיפול מקצועי -->
+    <!-- מודאל היסטוריה מפורטת -->
+    <div id="history-modal" class="modal-bg hidden">
+        <div class="bg-white w-full max-w-md rounded-3xl p-6 shadow-2xl text-right flex flex-col max-h-[85vh]">
+            <div class="flex justify-between items-center mb-4 border-b pb-2">
+                <h3 id="history-cust-name" class="text-xl font-bold">היסטוריית טיפולים</h3>
+                <button onclick="closeHistory()" class="text-2xl">✕</button>
+            </div>
+            <div id="history-content" class="overflow-y-auto space-y-4 pr-1 text-sm"></div>
+        </div>
+    </div>
+
+    <!-- מסך טופס טיפול -->
     <div id="service-screen" class="max-w-md mx-auto p-4 hidden text-right">
         <button onclick="closeForm()" class="text-blue-600 font-bold mb-6 flex items-center gap-2">✕ ביטול וחזרה</button>
         <h2 id="current-customer-name" class="text-2xl font-black mb-6 text-slate-900 border-b-4 border-blue-600 pb-2 inline-block"></h2>
         
-        <div class="space-y-6">
-            <!-- מועד הבא -->
-            <section class="card p-5 bg-blue-600 text-white shadow-lg">
-                <label class="block text-sm font-bold mb-2">📅 קביעת טיפול הבא:</label>
-                <input type="date" id="next_service_date" class="text-blue-900 font-bold">
-            </section>
+        <form id="service-form" onsubmit="event.preventDefault();">
+            <div class="space-y-6">
+                <section class="card p-5 bg-blue-600 text-white shadow-lg">
+                    <label class="block text-sm font-bold mb-2">📅 קביעת טיפול הבא:</label>
+                    <input type="date" id="next_service_date" class="text-blue-900 font-bold">
+                </section>
 
-            <!-- בדיקת ערכים -->
-            <section class="card p-5 shadow-sm">
-                <h3 class="section-title">📊 בדיקת ערכים</h3>
-                <div class="grid grid-cols-2 gap-4">
-                    <div>
-                        <label class="block text-xs mb-1 text-gray-500">PH (7.2-7.6)</label>
-                        <input type="number" step="0.1" id="val_ph" placeholder="7.2">
-                    </div>
-                    <div>
-                        <label class="block text-xs mb-1 text-gray-500">כלור (1.5-3.0)</label>
-                        <input type="number" step="0.1" id="val_chlorine" placeholder="1.5">
-                    </div>
-                </div>
-            </section>
-
-            <!-- הוספת חומרים בגרמים -->
-            <section class="card p-5 shadow-sm">
-                <h3 class="section-title">🧪 חומרים שנוספו (גרם/מ"ל)</h3>
-                <div class="space-y-3">
-                    <div class="chem-row">
-                        <label class="flex items-center gap-2"><input type="checkbox" id="chem_chlorine" class="w-5 h-5"> כלור</label>
-                        <div class="flex items-center gap-2">
-                            <input type="number" id="qty_chlorine" placeholder="0" class="input-qty"> <span class="text-xs text-gray-400">גרם</span>
+                <section class="card p-5 shadow-sm">
+                    <h3 class="section-title">📊 בדיקת ערכים</h3>
+                    <div class="grid grid-cols-2 gap-4">
+                        <div>
+                            <label class="block text-xs mb-1 text-gray-500">PH (7.2-7.6)</label>
+                            <input type="number" step="0.1" id="val_ph" placeholder="7.2">
+                        </div>
+                        <div>
+                            <label class="block text-xs mb-1 text-gray-500">כלור (1.5-3.0)</label>
+                            <input type="number" step="0.1" id="val_chlorine" placeholder="1.5">
                         </div>
                     </div>
-                    <div class="chem-row">
-                        <label class="flex items-center gap-2"><input type="checkbox" id="chem_ph_minus" class="w-5 h-5"> PH מינוס</label>
-                        <div class="flex items-center gap-2">
-                            <input type="number" id="qty_ph_minus" placeholder="0" class="input-qty"> <span class="text-xs text-gray-400">גרם</span>
+                </section>
+
+                <section class="card p-5 shadow-sm">
+                    <h3 class="section-title">🧪 חומרים שנוספו</h3>
+                    <div class="space-y-3">
+                        <div class="chem-row">
+                            <label class="flex items-center gap-2 font-bold text-red-600"><input type="checkbox" id="chem_hth" class="w-5 h-5"> HTH</label>
+                            <div class="flex items-center gap-2">
+                                <input type="number" id="qty_hth" placeholder="0" class="input-qty"> <span class="text-xs text-gray-400">גרם</span>
+                            </div>
+                        </div>
+                        <div class="chem-row">
+                            <label class="flex items-center gap-2"><input type="checkbox" id="chem_chlorine" class="w-5 h-5"> כלור</label>
+                            <div class="flex items-center gap-2">
+                                <input type="number" id="qty_chlorine" placeholder="0" class="input-qty"> <span class="text-xs text-gray-400">גרם</span>
+                            </div>
+                        </div>
+                        <div class="chem-row">
+                            <label class="flex items-center gap-2"><input type="checkbox" id="chem_ph_minus" class="w-5 h-5"> PH מינוס</label>
+                            <div class="flex items-center gap-2">
+                                <input type="number" id="qty_ph_minus" placeholder="0" class="input-qty"> <span class="text-xs text-gray-400">גרם</span>
+                            </div>
+                        </div>
+                        <div class="chem-row">
+                            <label class="flex items-center gap-2"><input type="checkbox" id="chem_algaecide" class="w-5 h-5"> מונע ירוקת</label>
+                            <div class="flex items-center gap-2">
+                                <input type="number" id="qty_algaecide" placeholder="0" class="input-qty"> <span class="text-xs text-gray-400">מ"ל</span>
+                            </div>
+                        </div>
+                        <div class="chem-row">
+                            <label class="flex items-center gap-2"><input type="checkbox" id="chem_clarifier" class="w-5 h-5"> מצליל</label>
+                            <div class="flex items-center gap-2">
+                                <input type="number" id="qty_clarifier" placeholder="0" class="input-qty"> <span class="text-xs text-gray-400">מ"ל</span>
+                            </div>
+                        </div>
+                        <div class="chem-row bg-blue-50 border-blue-200 border">
+                            <label class="flex items-center gap-2 font-bold text-blue-700"><input type="checkbox" id="replace_acid" class="w-5 h-5"> החלפת גלון חומצה</label>
+                        </div>
+                        <div class="chem-row bg-blue-50 border-blue-200 border">
+                            <label class="flex items-center gap-2 font-bold text-blue-700"><input type="checkbox" id="replace_chlorine" class="w-5 h-5"> החלפת גלון כלור</label>
+                        </div>
+                        <div class="chem-row bg-green-50 border-green-200 border">
+                            <label class="flex items-center gap-2 font-bold text-green-700"><input type="checkbox" id="supply_salt" class="w-5 h-5"> אספקת שקי מלח</label>
+                            <div class="flex items-center gap-2">
+                                <input type="number" id="qty_salt" placeholder="0" class="input-qty border-green-300"> <span class="text-xs text-gray-400">שקים</span>
+                            </div>
                         </div>
                     </div>
-                    <div class="chem-row">
-                        <label class="flex items-center gap-2"><input type="checkbox" id="chem_algaecide" class="w-5 h-5"> מונע ירוקת</label>
-                        <div class="flex items-center gap-2">
-                            <input type="number" id="qty_algaecide" placeholder="0" class="input-qty"> <span class="text-xs text-gray-400">מ"ל</span>
-                        </div>
+                </section>
+
+                <section class="card p-5 shadow-sm">
+                    <h3 class="section-title">🛠️ תחזוקה שבוצעה</h3>
+                    <div class="grid grid-cols-1 gap-3">
+                        <label class="flex items-center gap-3 p-2 border rounded-lg"><input type="checkbox" id="task_filter" class="w-5 h-5"> שטיפת פילטרים</label>
+                        <label class="flex items-center gap-3 p-2 border rounded-lg"><input type="checkbox" id="task_skimmer" class="w-5 h-5"> ניקוי סקימרים</label>
+                        <label class="flex items-center gap-3 p-2 border rounded-lg"><input type="checkbox" id="task_vacuum" class="w-5 h-5"> שאיבה / רובוט</label>
                     </div>
-                    <div class="chem-row">
-                        <label class="flex items-center gap-2"><input type="checkbox" id="chem_clarifier" class="w-5 h-5"> מצליל</label>
-                        <div class="flex items-center gap-2">
-                            <input type="number" id="qty_clarifier" placeholder="0" class="input-qty"> <span class="text-xs text-gray-400">מ"ל</span>
-                        </div>
-                    </div>
-                </div>
-            </section>
+                </section>
 
-            <!-- תחזוקה -->
-            <section class="card p-5 shadow-sm">
-                <h3 class="section-title">🛠️ תחזוקה שבוצעה</h3>
-                <div class="grid grid-cols-1 gap-3">
-                    <label class="flex items-center gap-3 p-2 border rounded-lg"><input type="checkbox" id="task_filter" class="w-5 h-5"> שטיפת פילטרים (Backwash)</label>
-                    <label class="flex items-center gap-3 p-2 border rounded-lg"><input type="checkbox" id="task_skimmer" class="w-5 h-5"> ניקוי סקימרים ורשת</label>
-                    <label class="flex items-center gap-3 p-2 border rounded-lg"><input type="checkbox" id="task_vacuum" class="w-5 h-5"> שאיבת קרקעית / רובוט</label>
-                </div>
-            </section>
+                <section class="card p-5 shadow-sm">
+                    <h3 class="section-title">📝 הערות</h3>
+                    <textarea id="service_notes" rows="3" placeholder="הערות לביקור..."></textarea>
+                </section>
 
-            <!-- הערות -->
-            <section class="card p-5 shadow-sm">
-                <h3 class="section-title">📝 הערות ללקוח / לעצמי</h3>
-                <textarea id="service_notes" rows="3" placeholder="האם היה חסר משהו? האם הלקוח ביקש משהו מיוחד?"></textarea>
-            </section>
-
-            <button onclick="saveServiceReport()" class="btn-primary shadow-xl text-lg flex justify-center items-center gap-2">
-                סיום טיפול וסנכרון ☁️
-            </button>
-        </div>
+                <button type="button" onclick="saveServiceReport()" class="btn-primary shadow-xl text-lg mb-10">סיום טיפול וסנכרון ☁️</button>
+            </div>
+        </form>
     </div>
 
     <script>
@@ -135,10 +181,6 @@
             apiKey: "AIzaSyCBA-DEcrr5Stcdvw77x0Gji1BPn6HxHMQ",
             authDomain: "pool-8526c.firebaseapp.com",
             projectId: "pool-8526c",
-            storageBucket: "pool-8526c.firebasestorage.app",
-            messagingSenderId: "301080908637",
-            appId: "1:301080908637:web:f708d4e4c9fd6c5f590eb4",
-            measurementId: "G-FX7K174PBH",
             databaseURL: "https://pool-8526c-default-rtdb.europe-west1.firebasedatabase.app/"
         };
 
@@ -164,96 +206,140 @@
 
         function renderCustomers() {
             const list = document.getElementById('customer-list');
+            const searchTerm = document.getElementById('search-input').value.toLowerCase();
             list.innerHTML = '';
-            
-            if (customers.length === 0) {
-                list.innerHTML = '<div class="text-center p-10 bg-white rounded-2xl border-2 border-dashed border-gray-200">אין לקוחות פעילים.<br>לחצי על ה- + למעלה</div>';
-                return;
-            }
-
-            customers.forEach(c => {
+            customers.filter(c => c.name.toLowerCase().includes(searchTerm) || (c.city && c.city.toLowerCase().includes(searchTerm))).forEach(c => {
                 list.innerHTML += `
-                    <div class="card p-5 border-r-8 border-blue-500 bg-white mb-4 text-right transition-all active:scale-95">
+                    <div class="card p-5 border-r-8 border-blue-500 mb-4 text-right shadow-md">
                         <div class="flex justify-between items-start mb-4">
                             <div>
                                 <h3 class="font-bold text-xl text-slate-800">${c.name}</h3>
-                                <p class="text-sm text-gray-500">${c.city || ''}</p>
-                                <div class="flex items-center gap-1 mt-2">
-                                    <span class="w-2 h-2 bg-orange-500 rounded-full animate-pulse"></span>
-                                    <p class="text-xs font-bold text-orange-600 italic">ביקור הבא: ${dayjs(c.nextService).format('DD/MM/YYYY')}</p>
-                                </div>
+                                <p class="text-sm text-gray-500">${c.city || 'אין כתובת'}</p>
+                                <button onclick="showHistory('${c.firebaseId}')" class="text-blue-600 text-xs font-bold mt-1 block">📜 צפה בהיסטוריה מפורטת</button>
                             </div>
-                            <button onclick="deleteCustomer('${c.firebaseId}', '${c.name}')" class="btn-delete">מחיקה 🗑️</button>
+                            <div class="flex flex-col">
+                                <button onclick="openEditCustomerModal('${c.firebaseId}')" class="btn-edit text-xs">עריכה ✏️</button>
+                                <button onclick="deleteCustomer('${c.firebaseId}', '${c.name}')" class="btn-delete text-xs">מחיקה 🗑️</button>
+                            </div>
                         </div>
-                        <button onclick="openServiceForm('${c.firebaseId}')" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg flex justify-center items-center gap-2">
-                            התחל ביקור 🏊‍♂️
-                        </button>
+                        <button onclick="openServiceForm('${c.firebaseId}')" class="w-full bg-blue-600 text-white py-4 rounded-xl font-bold shadow-lg">התחל ביקור 🏊‍♂️</button>
                     </div>`;
             });
         }
 
-        function openServiceForm(id) {
-            activeCustomerId = id;
-            const customer = customers.find(c => c.firebaseId === id);
-            document.getElementById('main-screen').classList.add('hidden');
-            document.getElementById('service-screen').classList.remove('hidden');
-            document.getElementById('current-customer-name').innerText = customer.name;
-            document.getElementById('next_service_date').value = getSmartTwoWeeksDate();
-            window.scrollTo(0,0);
+        function showHistory(id) {
+            const c = customers.find(curr => curr.firebaseId === id);
+            document.getElementById('history-cust-name').innerText = "היסטוריה: " + c.name;
+            const content = document.getElementById('history-content');
+            content.innerHTML = '';
+
+            if (c.history) {
+                Object.values(c.history).reverse().forEach(h => {
+                    let chemList = [];
+                    if(h.chems) {
+                        if(h.chems.hth?.qty) chemList.push(`HTH: ${h.chems.hth.qty}ג'`);
+                        if(h.chems.chlorine?.qty) chemList.push(`כלור: ${h.chems.chlorine.qty}ג'`);
+                        if(h.chems.phMinus?.qty) chemList.push(`PH-: ${h.chems.phMinus.qty}ג'`);
+                        if(h.chems.algaecide?.qty) chemList.push(`מונע ירוקת: ${h.chems.algaecide.qty}מ"ל`);
+                        if(h.chems.clarifier?.qty) chemList.push(`מצליל: ${h.chems.clarifier.qty}מ"ל`);
+                        if(h.chems.replacedAcid) chemList.push(`<span class="text-blue-700 font-bold">🔄 הוחלף גלון חומצה</span>`);
+                        if(h.chems.replacedChlorine) chemList.push(`<span class="text-blue-700 font-bold">🔄 הוחלף גלון כלור</span>`);
+                        if(h.chems.saltQty > 0) chemList.push(`<span class="text-green-700 font-bold">🧂 סופקו ${h.chems.saltQty} שקי מלח</span>`);
+                    }
+
+                    content.innerHTML += `
+                        <div class="history-item text-right">
+                            <div class="font-bold text-blue-800 flex justify-between border-b pb-1 mb-2">
+                                <span>📅 ${dayjs(h.date).format('DD/MM/YY')}</span>
+                                <span>PH: ${h.ph || '-'} | CL: ${h.cl || '-'}</span>
+                            </div>
+                            <div class="mb-1"><span class="font-bold">🧪 חומרים:</span> ${chemList.length > 0 ? chemList.join(", ") : "לא נוספו"}</div>
+                            <div class="mb-1"><span class="font-bold">🛠️ ביצוע:</span> ${h.tasksPerformed || "טיפול שגרתי"}</div>
+                            ${h.notes ? `<div class="mt-2 p-2 bg-yellow-50 rounded italic text-gray-700">"${h.notes}"</div>` : ''}
+                        </div>`;
+                });
+            } else { content.innerHTML = '<p class="text-center py-10 text-gray-400">אין היסטוריה</p>'; }
+            document.getElementById('history-modal').classList.remove('hidden');
         }
 
         async function saveServiceReport() {
-            const updates = { 
-                nextService: document.getElementById('next_service_date').value,
-                lastPH: document.getElementById('val_ph').value,
-                lastChlorine: document.getElementById('val_chlorine').value,
+            const tasks = [];
+            if(document.getElementById('task_filter').checked) tasks.push("שטיפה");
+            if(document.getElementById('task_skimmer').checked) tasks.push("סקימרים");
+            if(document.getElementById('task_vacuum').checked) tasks.push("שאיבה");
+
+            const reportEntry = {
+                date: dayjs().format('YYYY-MM-DD HH:mm'),
+                ph: document.getElementById('val_ph').value,
+                cl: document.getElementById('val_chlorine').value,
                 notes: document.getElementById('service_notes').value,
-                lastVisit: dayjs().format('YYYY-MM-DD'),
-                chemicals: {
-                    chlorine: { used: document.getElementById('chem_chlorine').checked, qty: document.getElementById('qty_chlorine').value },
-                    phMinus: { used: document.getElementById('chem_ph_minus').checked, qty: document.getElementById('qty_ph_minus').value },
-                    algaecide: { used: document.getElementById('chem_algaecide').checked, qty: document.getElementById('qty_algaecide').value },
-                    clarifier: { used: document.getElementById('chem_clarifier').checked, qty: document.getElementById('qty_clarifier').value }
-                },
-                tasks: {
-                    filterWash: document.getElementById('task_filter').checked,
-                    skimmerClean: document.getElementById('task_skimmer').checked,
-                    vacuum: document.getElementById('task_vacuum').checked
+                tasksPerformed: tasks.join(", "),
+                chems: {
+                    hth: { qty: document.getElementById('qty_hth').value },
+                    chlorine: { qty: document.getElementById('qty_chlorine').value },
+                    phMinus: { qty: document.getElementById('qty_ph_minus').value },
+                    algaecide: { qty: document.getElementById('qty_algaecide').value },
+                    clarifier: { qty: document.getElementById('qty_clarifier').value },
+                    replacedAcid: document.getElementById('replace_acid').checked,
+                    replacedChlorine: document.getElementById('replace_chlorine').checked,
+                    saltQty: document.getElementById('qty_salt').value
                 }
             };
-            try {
-                await db.ref('customers/' + activeCustomerId).update(updates);
-                alert("הדו\"ח נשמר בהצלחה ב-Pool Cloud! ☁️");
-                closeForm();
-            } catch (e) { alert("שגיאה בסנכרון: " + e.message); }
+
+            await db.ref('customers/' + activeCustomerId + '/history').push(reportEntry);
+            await db.ref('customers/' + activeCustomerId).update({ 
+                nextService: document.getElementById('next_service_date').value, 
+                lastVisit: dayjs().format('YYYY-MM-DD') 
+            });
+            alert("נשמר בהצלחה!");
+            closeForm();
         }
 
-        async function deleteCustomer(id, name) {
-            if (confirm(`למחוק את ${name}? כל המידע יאבד.`)) {
-                try {
-                    await db.ref('customers/' + id).remove();
-                } catch (e) { alert("שגיאה: " + e.message); }
-            }
+        function closeForm() { 
+            document.getElementById('service-form').reset();
+            document.getElementById('service-screen').classList.add('hidden'); 
+            document.getElementById('main-screen').classList.remove('hidden'); 
         }
 
-        async function saveNewCustomer() {
-            const name = document.getElementById('new-cust-name').value;
-            const city = document.getElementById('new-cust-city').value;
-            if (!name) return alert("חובה שם לקוח");
-            try {
-                await customersRef.push({ name, city, nextService: getSmartTwoWeeksDate() });
-                closeModal();
-                document.getElementById('new-cust-name').value = '';
-                document.getElementById('new-cust-city').value = '';
-            } catch (e) { alert("שגיאה: " + e.message); }
+        function openSchedule() {
+            const content = document.getElementById('schedule-content');
+            content.innerHTML = '';
+            [...customers].sort((a, b) => dayjs(a.nextService).unix() - dayjs(b.nextService).unix()).forEach(c => {
+                content.innerHTML += `<div onclick="goToService('${c.firebaseId}')" class="sched-item"><span>${c.name}</span><span class="font-bold text-blue-600">${dayjs(c.nextService).format('DD/MM')}</span></div>`;
+            });
+            document.getElementById('schedule-modal').classList.remove('hidden');
         }
-
+        function openServiceForm(id) {
+            activeCustomerId = id;
+            const c = customers.find(curr => curr.firebaseId === id);
+            document.getElementById('current-customer-name').innerText = c.name;
+            document.getElementById('next_service_date').value = getSmartTwoWeeksDate();
+            document.getElementById('main-screen').classList.add('hidden');
+            document.getElementById('service-screen').classList.remove('hidden');
+        }
+        function goToService(id) { document.getElementById('schedule-modal').classList.add('hidden'); openServiceForm(id); }
         function openAddCustomerModal() { document.getElementById('modal-overlay').classList.remove('hidden'); }
         function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
-        function closeForm() {
-            document.getElementById('service-screen').classList.add('hidden');
-            document.getElementById('main-screen').classList.remove('hidden');
+        function closeHistory() { document.getElementById('history-modal').classList.add('hidden'); }
+        function closeSchedule() { document.getElementById('schedule-modal').classList.add('hidden'); }
+        async function saveCustomer() {
+            const data = { name: document.getElementById('new-cust-name').value, city: document.getElementById('new-cust-city').value, phone: document.getElementById('new-cust-phone').value, nextService: getSmartTwoWeeksDate() };
+            await customersRef.push(data); closeModal();
         }
+
+        // פונקציית מחיקה עם הגנת מנהל
+        async function deleteCustomer(id, name) { 
+            const pin = prompt(`כדי למחוק את ${name}, הזן קוד מנהל:`);
+            if (pin === "1234") { // כאן ניתן לשנות את הקוד הסודי
+                if (confirm(`האם אתה בטוח שברצונך למחוק את ${name}?`)) {
+                    await db.ref('customers/' + id).remove();
+                    alert("הלקוח נמחק בהצלחה.");
+                }
+            } else if (pin !== null) {
+                alert("קוד שגוי. אין לך הרשאה למחוק לקוחות.");
+            }
+        }
+        
         document.getElementById('today-date').innerText = dayjs().format('DD/MM/YYYY');
     </script>
 </body>
