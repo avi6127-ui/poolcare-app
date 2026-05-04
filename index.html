@@ -23,6 +23,7 @@
         .input-qty { width: 80px; padding: 6px; text-align: center; border-bottom: 2px solid #2563eb; border-radius: 6px; background: #f0f7ff; font-weight: bold; }
         .btn-primary { background: #2563eb; color: white; border-radius: 14px; padding: 16px; font-weight: 700; width: 100%; border: none; transition: opacity 0.2s; }
         .btn-primary:disabled { opacity: 0.7; cursor: not-allowed; }
+        .btn-whatsapp { background: #25d366; color: white; border-radius: 14px; padding: 16px; font-weight: 700; width: 100%; border: none; margin-top: 10px; display: flex; align-items: center; justify-content: center; gap: 8px; }
         .btn-delete { color: #ef4444; font-weight: bold; padding: 8px; }
         .btn-edit { color: #2563eb; font-weight: bold; padding: 8px; }
         .hidden { display: none; }
@@ -31,6 +32,7 @@
         .chem-row { display: flex; align-items: center; justify-content: space-between; padding: 10px; background: #f8fafc; border-radius: 12px; }
         .history-item { border-right: 4px solid #2563eb; background: #f1f5f9; padding: 12px; border-radius: 8px; margin-bottom: 12px; font-size: 14px; }
         .sched-item { border-bottom: 1px solid #f1f5f9; padding: 12px 0; display: flex; justify-content: space-between; align-items: center; cursor: pointer; }
+        .calc-msg { font-size: 12px; font-weight: bold; margin-top: 4px; display: block; }
     </style>
 </head>
 <body class="text-slate-900 pb-10">
@@ -78,6 +80,7 @@
                 <input type="text" id="new-cust-name" placeholder="שם הלקוח">
                 <input type="text" id="new-cust-city" placeholder="יישוב">
                 <input type="tel" id="new-cust-phone" placeholder="מספר טלפון">
+                <input type="number" id="new-cust-volume" placeholder="נפח בריכה (קוב)">
                 <button onclick="saveCustomer()" class="btn-primary mt-4">שמור וסנכרן ☁️</button>
                 <button onclick="closeModal()" class="w-full text-slate-400 py-2 font-bold">ביטול</button>
             </div>
@@ -98,7 +101,8 @@
     <!-- מסך טופס טיפול -->
     <div id="service-screen" class="max-w-md mx-auto p-4 hidden text-right">
         <button onclick="closeForm()" class="text-blue-600 font-bold mb-6 flex items-center gap-2">✕ ביטול וחזרה</button>
-        <h2 id="current-customer-name" class="text-2xl font-black mb-6 text-slate-900 border-b-4 border-blue-600 pb-2 inline-block"></h2>
+        <h2 id="current-customer-name" class="text-2xl font-black mb-1 text-slate-900 border-b-4 border-blue-600 pb-2 inline-block"></h2>
+        <p id="current-customer-vol-display" class="text-sm text-blue-600 font-bold mb-6"></p>
         
         <form id="service-form" onsubmit="event.preventDefault();">
             <div class="space-y-6">
@@ -112,11 +116,21 @@
                     <div class="grid grid-cols-2 gap-4">
                         <div>
                             <label class="block text-xs mb-1 text-gray-500">PH (7.2-7.6)</label>
-                            <input type="number" step="0.1" id="val_ph" placeholder="7.2" oninput="validateRange(this, 7.2, 7.6)">
+                            <input type="number" step="0.1" id="val_ph" placeholder="7.2" oninput="runCalculations()">
+                            <span id="calc-ph-msg" class="calc-msg text-red-500"></span>
                         </div>
                         <div>
                             <label class="block text-xs mb-1 text-gray-500">כלור (1.5-3.0)</label>
-                            <input type="number" step="0.1" id="val_chlorine" placeholder="1.5" oninput="validateRange(this, 1.5, 3.0)">
+                            <input type="number" step="0.1" id="val_chlorine" placeholder="1.5" oninput="runCalculations()">
+                            <span id="calc-cl-msg" class="calc-msg text-green-600"></span>
+                        </div>
+                        <div>
+                            <label class="block text-xs mb-1 text-gray-500">Redox (600-800)</label>
+                            <input type="number" id="val_redox" placeholder="700" oninput="runCalculations()">
+                        </div>
+                        <div>
+                            <label class="block text-xs mb-1 text-gray-500">מלח (2000-3500)</label>
+                            <input type="number" id="val_salt" placeholder="3000" oninput="runCalculations()">
                         </div>
                     </div>
                 </section>
@@ -156,18 +170,6 @@
                                 <input type="number" id="qty_ph_minus" placeholder="0" class="input-qty"> <span class="text-xs text-gray-400">גרם</span>
                             </div>
                         </div>
-                        <div class="chem-row">
-                            <label class="flex items-center gap-2"><input type="checkbox" id="chem_algaecide" class="w-5 h-5"> מונע ירוקת</label>
-                            <div class="flex items-center gap-2">
-                                <input type="number" id="qty_algaecide" placeholder="0" class="input-qty"> <span class="text-xs text-gray-400">מ"ל</span>
-                            </div>
-                        </div>
-                        <div class="chem-row">
-                            <label class="flex items-center gap-2"><input type="checkbox" id="chem_clarifier" class="w-5 h-5"> מצליל</label>
-                            <div class="flex items-center gap-2">
-                                <input type="number" id="qty_clarifier" placeholder="0" class="input-qty"> <span class="text-xs text-gray-400">מ"ל</span>
-                            </div>
-                        </div>
                         <div class="chem-row bg-blue-50 border-blue-200 border">
                             <label class="flex items-center gap-2 font-bold text-blue-700"><input type="checkbox" id="replace_acid" class="w-5 h-5"> החלפת גלון חומצה</label>
                         </div>
@@ -197,7 +199,12 @@
                     <textarea id="service_notes" rows="3" placeholder="הערות לביקור..."></textarea>
                 </section>
 
-                <button id="save-btn" type="button" onclick="saveServiceReport()" class="btn-primary shadow-xl text-lg mb-10">סיום טיפול וסנכרון ☁️</button>
+                <div id="action-buttons">
+                    <button id="save-btn" type="button" onclick="saveServiceReport()" class="btn-primary shadow-xl text-lg">סיום טיפול וסנכרון ☁️</button>
+                    <button id="whatsapp-btn" type="button" onclick="sendWhatsAppSummary()" class="btn-whatsapp shadow-lg hidden">
+                        <span>שלח סיכום בוואטסאפ 📱</span>
+                    </button>
+                </div>
             </div>
         </form>
     </div>
@@ -219,8 +226,8 @@
         let customers = [];
         let activeCustomerId = null;
         let selectedFile = null;
+        let currentPoolVolume = 0;
 
-        // ניהול סטטוס חיבור
         const connectedRef = db.ref(".info/connected");
         connectedRef.on("value", (snap) => {
             const statusDiv = document.getElementById('sync-status');
@@ -256,7 +263,7 @@
                         <div class="flex justify-between items-start mb-4">
                             <div>
                                 <h3 class="font-bold text-xl text-slate-800">${c.name}</h3>
-                                <p class="text-sm text-gray-500">${c.city || 'אין כתובת'}</p>
+                                <p class="text-sm text-gray-500">${c.city || 'אין כתובת'} | ${c.volume || 0} קוב</p>
                                 <div class="flex gap-4 mt-2">
                                     <button onclick="showHistory('${c.firebaseId}')" class="text-blue-600 text-xs font-bold">📜 היסטוריה</button>
                                     <a href="tel:${c.phone}" class="text-green-600 text-xs font-bold underline">📞 התקשר</a>
@@ -272,15 +279,67 @@
             });
         }
 
-        function validateRange(el, min, max) {
-            const val = parseFloat(el.value);
-            if (val < min || val > max) {
-                el.style.backgroundColor = '#fef2f2';
-                el.style.borderColor = '#ef4444';
-            } else {
-                el.style.backgroundColor = '#f0fdf4';
-                el.style.borderColor = '#22c55e';
-            }
+        function runCalculations() {
+            const phEl = document.getElementById('val_ph');
+            const clEl = document.getElementById('val_chlorine');
+            const redoxEl = document.getElementById('val_redox');
+            const saltEl = document.getElementById('val_salt');
+
+            const ph = parseFloat(phEl.value);
+            const cl = parseFloat(clEl.value);
+            const redox = parseFloat(redoxEl.value);
+            const salt = parseFloat(saltEl.value);
+
+            const phMsg = document.getElementById('calc-ph-msg');
+            const clMsg = document.getElementById('calc-cl-msg');
+            
+            phMsg.innerText = ""; clMsg.innerText = "";
+            const alertColor = "#ff0000"; // אדום בוהק
+            const textColor = "white";
+            
+            // PH (7.2-7.6)
+            if (!isNaN(ph)) {
+                if (ph < 7.2 || ph > 7.6) {
+                    phEl.style.backgroundColor = alertColor; phEl.style.color = textColor;
+                } else {
+                    phEl.style.backgroundColor = "white"; phEl.style.color = "black";
+                }
+                if (ph > 7.6 && currentPoolVolume > 0) {
+                    const liters = ((ph - 7.4) * 200 * currentPoolVolume / 1000).toFixed(1);
+                    phMsg.innerText = `🧪 להוסיף כ-${liters} ליטר חומצה`;
+                }
+            } else { phEl.style.backgroundColor = "white"; phEl.style.color = "black"; }
+
+            // CL (1.5-3.0)
+            if (!isNaN(cl)) {
+                if (cl < 1.5 || cl > 3.0) {
+                    clEl.style.backgroundColor = alertColor; clEl.style.color = textColor;
+                } else {
+                    clEl.style.backgroundColor = "white"; clEl.style.color = "black";
+                }
+                if (cl < 1.5 && currentPoolVolume > 0) {
+                    const hours = (((2.0 - cl) * currentPoolVolume) / 20).toFixed(1);
+                    clMsg.innerText = `⚙️ להפעיל ייצור ל-${hours} שעות`;
+                }
+            } else { clEl.style.backgroundColor = "white"; clEl.style.color = "black"; }
+
+            // Redox (600-800) - טווח מעודכן
+            if (!isNaN(redox)) {
+                if (redox < 600 || redox > 800) {
+                    redoxEl.style.backgroundColor = alertColor; redoxEl.style.color = textColor;
+                } else {
+                    redoxEl.style.backgroundColor = "white"; redoxEl.style.color = "black";
+                }
+            } else { redoxEl.style.backgroundColor = "white"; redoxEl.style.color = "black"; }
+
+            // מלח (2000-3500) - טווח מעודכן
+            if (!isNaN(salt)) {
+                if (salt < 2000 || salt > 3500) {
+                    saltEl.style.backgroundColor = alertColor; saltEl.style.color = textColor;
+                } else {
+                    saltEl.style.backgroundColor = "white"; saltEl.style.color = "black";
+                }
+            } else { saltEl.style.backgroundColor = "white"; saltEl.style.color = "black"; }
         }
 
         function previewImage(input) {
@@ -308,10 +367,7 @@
                 const storageRef = storage.ref(fileName);
                 const snapshot = await storageRef.put(selectedFile);
                 return await snapshot.ref.getDownloadURL();
-            } catch (e) {
-                console.error("Photo upload failed", e);
-                return null;
-            }
+            } catch (e) { return null; }
         }
 
         function showHistory(id) {
@@ -319,7 +375,6 @@
             document.getElementById('history-cust-name').innerText = "היסטוריה: " + c.name;
             const content = document.getElementById('history-content');
             content.innerHTML = '';
-
             if (c.history) {
                 Object.values(c.history).reverse().forEach(h => {
                     let chemList = [];
@@ -327,24 +382,11 @@
                         if(h.chems.hth?.qty) chemList.push(`HTH: ${h.chems.hth.qty}ג'`);
                         if(h.chems.chlorine?.qty) chemList.push(`כלור: ${h.chems.chlorine.qty}ג'`);
                         if(h.chems.phMinus?.qty) chemList.push(`PH-: ${h.chems.phMinus.qty}ג'`);
-                        if(h.chems.algaecide?.qty) chemList.push(`מונע ירוקת: ${h.chems.algaecide.qty}מ"ל`);
-                        if(h.chems.clarifier?.qty) chemList.push(`מצליל: ${h.chems.clarifier.qty}מ"ל`);
-                        if(h.chems.replacedAcid) chemList.push(`<span class="text-blue-700 font-bold">🔄 גלון חומצה</span>`);
-                        if(h.chems.replacedChlorine) chemList.push(`<span class="text-blue-700 font-bold">🔄 גלון כלור</span>`);
-                        if(h.chems.saltQty > 0) chemList.push(`<span class="text-green-700 font-bold">🧂 ${h.chems.saltQty} שקי מלח</span>`);
+                        if(h.chems.replacedAcid) chemList.push(`🔄 גלון חומצה`);
+                        if(h.chems.replacedChlorine) chemList.push(`🔄 גלון כלור`);
+                        if(h.chems.saltQty > 0) chemList.push(`🧂 ${h.chems.saltQty} שקי מלח`);
                     }
-
-                    content.innerHTML += `
-                        <div class="history-item text-right">
-                            <div class="font-bold text-blue-800 flex justify-between border-b pb-1 mb-2">
-                                <span>📅 ${dayjs(h.date).format('DD/MM/YY')}</span>
-                                <span>PH: ${h.ph || '-'} | CL: ${h.cl || '-'}</span>
-                            </div>
-                            ${h.photo ? `<div class="mb-2"><img src="${h.photo}" class="w-full h-32 object-cover rounded-lg shadow-sm" onclick="window.open('${h.photo}')"></div>` : ''}
-                            <div class="mb-1"><span class="font-bold">🧪 חומרים:</span> ${chemList.length > 0 ? chemList.join(", ") : "לא נוספו"}</div>
-                            <div class="mb-1"><span class="font-bold">🛠️ ביצוע:</span> ${h.tasksPerformed || "טיפול שגרתי"}</div>
-                            ${h.notes ? `<div class="mt-2 p-2 bg-yellow-50 rounded italic text-gray-700">"${h.notes}"</div>` : ''}
-                        </div>`;
+                    content.innerHTML += `<div class="history-item text-right"><div class="font-bold text-blue-800 flex justify-between border-b pb-1 mb-2"><span>📅 ${dayjs(h.date).format('DD/MM/YY')}</span><span>PH: ${h.ph || '-'} | CL: ${h.cl || '-'}</span></div><div class="text-[11px] text-gray-500 mb-1">Redox: ${h.redox || '-'} | מלח: ${h.salt || '-'}</div>${h.photo ? `<div class="mb-2"><img src="${h.photo}" class="w-full h-32 object-cover rounded-lg shadow-sm"></div>` : ''}<div class="mb-1"><span class="font-bold">🧪 חומרים:</span> ${chemList.length > 0 ? chemList.join(", ") : "לא נוספו"}</div><div class="mb-1"><span class="font-bold">🛠️ ביצוע:</span> ${h.tasksPerformed || "טיפול שגרתי"}</div>${h.notes ? `<div class="mt-2 p-2 bg-yellow-50 rounded italic text-gray-700">"${h.notes}"</div>` : ''}</div>`;
                 });
             } else { content.innerHTML = '<p class="text-center py-10 text-gray-400">אין היסטוריה</p>'; }
             document.getElementById('history-modal').classList.remove('hidden');
@@ -352,23 +394,19 @@
 
         async function saveServiceReport() {
             const btn = document.getElementById('save-btn');
-            const originalText = btn.innerText;
-            
             try {
-                btn.innerText = "מעלה נתונים... ⏳";
-                btn.disabled = true;
-
+                btn.innerText = "מעלה נתונים... ⏳"; btn.disabled = true;
                 const photoUrl = await uploadPhoto(activeCustomerId);
-
                 const tasks = [];
                 if(document.getElementById('task_filter').checked) tasks.push("שטיפה");
                 if(document.getElementById('task_skimmer').checked) tasks.push("סקימרים");
                 if(document.getElementById('task_vacuum').checked) tasks.push("שאיבה");
-
                 const reportEntry = {
                     date: dayjs().format('YYYY-MM-DD HH:mm'),
                     ph: document.getElementById('val_ph').value,
                     cl: document.getElementById('val_chlorine').value,
+                    redox: document.getElementById('val_redox').value,
+                    salt: document.getElementById('val_salt').value,
                     notes: document.getElementById('service_notes').value,
                     tasksPerformed: tasks.join(", "),
                     photo: photoUrl || null,
@@ -376,35 +414,72 @@
                         hth: { qty: document.getElementById('qty_hth').value },
                         chlorine: { qty: document.getElementById('qty_chlorine').value },
                         phMinus: { qty: document.getElementById('qty_ph_minus').value },
-                        algaecide: { qty: document.getElementById('qty_algaecide').value },
-                        clarifier: { qty: document.getElementById('qty_clarifier').value },
                         replacedAcid: document.getElementById('replace_acid').checked,
                         replacedChlorine: document.getElementById('replace_chlorine').checked,
                         saltQty: document.getElementById('qty_salt').value
                     }
                 };
-
                 await db.ref('customers/' + activeCustomerId + '/history').push(reportEntry);
-                await db.ref('customers/' + activeCustomerId).update({ 
-                    nextService: document.getElementById('next_service_date').value, 
-                    lastVisit: dayjs().format('YYYY-MM-DD') 
-                });
-                
+                await db.ref('customers/' + activeCustomerId).update({ nextService: document.getElementById('next_service_date').value, lastVisit: dayjs().format('YYYY-MM-DD') });
                 alert("נשמר בהצלחה!");
-                clearImage();
-                closeForm();
-            } catch (e) {
-                alert("שגיאה בשמירה: " + e.message);
-            } finally {
-                btn.innerText = originalText;
-                btn.disabled = false;
-            }
+                document.getElementById('whatsapp-btn').classList.remove('hidden');
+                document.getElementById('save-btn').classList.add('hidden');
+                btn.disabled = false; btn.innerText = "סיום טיפול וסנכרון ☁️";
+            } catch (e) { alert("שגיאה בשמירה: " + e.message); btn.disabled = false; btn.innerText = "סיום טיפול וסנכרון ☁️"; }
+        }
+
+        function sendWhatsAppSummary() {
+            const customer = customers.find(c => c.firebaseId === activeCustomerId);
+            if (!customer) return;
+
+            const phVal = parseFloat(document.getElementById('val_ph').value);
+            const clVal = parseFloat(document.getElementById('val_chlorine').value);
+            const redox = document.getElementById('val_redox').value || '-';
+            const salt = document.getElementById('val_salt').value || '-';
+            const notes = document.getElementById('service_notes').value;
+            const nextDate = dayjs(document.getElementById('next_service_date').value).format('DD/MM/YY');
+            
+            const phStatus = (phVal >= 7.2 && phVal <= 7.6) ? "✅" : "⚠️ (חריגה)";
+            const clStatus = (clVal >= 1.5 && clVal <= 3.0) ? "✅" : "⚠️ (חריגה)";
+
+            let chemText = "";
+            const hth = document.getElementById('qty_hth').value;
+            const chlorineQty = document.getElementById('qty_chlorine').value;
+            const phMinus = document.getElementById('qty_ph_minus').value;
+            const saltQty = document.getElementById('qty_salt').value;
+
+            if(hth > 0) chemText += `\n- HTH: ${hth}ג'`;
+            if(chlorineQty > 0) chemText += `\n- כלור: ${chlorineQty}ג'`;
+            if(phMinus > 0) chemText += `\n- PH מינוס: ${phMinus}ג'`;
+            if(document.getElementById('replace_acid').checked) chemText += `\n- הוחלף גלון חומצה 🔄`;
+            if(document.getElementById('replace_chlorine').checked) chemText += `\n- הוחלף גלון כלור 🔄`;
+            if(saltQty > 0) chemText += `\n- סופקו ${saltQty} שקי מלח 🧂`;
+
+            let tasksText = "";
+            if(document.getElementById('task_filter').checked) tasksText += " שטיפה,";
+            if(document.getElementById('task_skimmer').checked) tasksText += " סקימרים,";
+            if(document.getElementById('task_vacuum').checked) tasksText += " שאיבה,";
+            if(tasksText) tasksText = tasksText.slice(0, -1);
+
+            let text = `שלום ${customer.name}, להלן סיכום ביקור לבריכה שלך בתאריך ${dayjs().format('DD/MM/YY')}:\n\n📊 *מדדים:* \nPH: ${phVal || '-'} ${phStatus}\nכלור: ${clVal || '-'} ${clStatus}\nRedox: ${redox}\nמלח: ${salt}\n`;
+            if(tasksText) text += `\n🛠️ *תחזוקה שבוצעה:* ${tasksText}\n`;
+            if(chemText) text += `\n🧪 *חומרים שנוספו:*${chemText}\n`;
+            if(notes) text += `\n📝 *הערות:* ${notes}\n`;
+            text += `\n📅 *ביקור הבא:* ${nextDate}\n\nהמשך שבוע מהנה! 🏊‍♂️`;
+            
+            const phone = customer.phone ? customer.phone.replace(/[^0-9]/g, '') : '';
+            const finalPhone = phone.startsWith('0') ? '972' + phone.substring(1) : phone;
+            window.location.assign(`https://wa.me/${finalPhone}?text=${encodeURIComponent(text)}`);
+            setTimeout(() => { closeForm(); }, 1500);
         }
 
         function closeForm() { 
             document.getElementById('service-form').reset();
-            document.getElementById('val_ph').style.backgroundColor = '';
-            document.getElementById('val_chlorine').style.backgroundColor = '';
+            ['val_ph', 'val_chlorine', 'val_redox', 'val_salt'].forEach(id => {
+                const el = document.getElementById(id); el.style.backgroundColor = "white"; el.style.color = "black";
+            });
+            document.getElementById('whatsapp-btn').classList.add('hidden');
+            document.getElementById('save-btn').classList.remove('hidden');
             clearImage();
             document.getElementById('service-screen').classList.add('hidden'); 
             document.getElementById('main-screen').classList.remove('hidden'); 
@@ -422,7 +497,9 @@
         function openServiceForm(id) {
             activeCustomerId = id;
             const c = customers.find(curr => curr.firebaseId === id);
+            currentPoolVolume = parseFloat(c.volume) || 0;
             document.getElementById('current-customer-name').innerText = c.name;
+            document.getElementById('current-customer-vol-display').innerText = `נפח בריכה: ${currentPoolVolume} קוב`;
             document.getElementById('next_service_date').value = getSmartTwoWeeksDate();
             document.getElementById('main-screen').classList.add('hidden');
             document.getElementById('service-screen').classList.remove('hidden');
@@ -430,56 +507,36 @@
         }
 
         function goToService(id) { document.getElementById('schedule-modal').classList.add('hidden'); openServiceForm(id); }
-        
         function openAddCustomerModal() { 
             document.getElementById('modal-title').innerText = "הוספת לקוח חדש";
-            document.getElementById('edit-cust-id').value = "";
-            document.getElementById('new-cust-name').value = "";
-            document.getElementById('new-cust-city').value = "";
-            document.getElementById('new-cust-phone').value = "";
-            document.getElementById('modal-overlay').classList.remove('hidden'); 
+            document.getElementById('edit-cust-id').value = ""; document.getElementById('new-cust-name').value = "";
+            document.getElementById('new-cust-city').value = ""; document.getElementById('new-cust-phone').value = "";
+            document.getElementById('new-cust-volume').value = ""; document.getElementById('modal-overlay').classList.remove('hidden'); 
         }
-
         function openEditCustomerModal(id) {
             const c = customers.find(curr => curr.firebaseId === id);
             document.getElementById('modal-title').innerText = "עריכת לקוח: " + c.name;
-            document.getElementById('edit-cust-id').value = id;
-            document.getElementById('new-cust-name').value = c.name;
-            document.getElementById('new-cust-city').value = c.city || '';
-            document.getElementById('new-cust-phone').value = c.phone || '';
-            document.getElementById('modal-overlay').classList.remove('hidden');
+            document.getElementById('edit-cust-id').value = id; document.getElementById('new-cust-name').value = c.name;
+            document.getElementById('new-cust-city').value = c.city || ''; document.getElementById('new-cust-phone').value = c.phone || '';
+            document.getElementById('new-cust-volume').value = c.volume || ''; document.getElementById('modal-overlay').classList.remove('hidden');
         }
-
         function closeModal() { document.getElementById('modal-overlay').classList.add('hidden'); }
         function closeHistory() { document.getElementById('history-modal').classList.add('hidden'); }
         function closeSchedule() { document.getElementById('schedule-modal').classList.add('hidden'); }
-
         async function saveCustomer() {
             const id = document.getElementById('edit-cust-id').value;
             const data = { 
-                name: document.getElementById('new-cust-name').value, 
-                city: document.getElementById('new-cust-city').value, 
-                phone: document.getElementById('new-cust-phone').value 
+                name: document.getElementById('new-cust-name').value, city: document.getElementById('new-cust-city').value, 
+                phone: document.getElementById('new-cust-phone').value, volume: document.getElementById('new-cust-volume').value 
             };
-            
-            if (id) {
-                await db.ref('customers/' + id).update(data);
-            } else {
-                data.nextService = getSmartTwoWeeksDate();
-                await customersRef.push(data);
-            }
+            if (id) { await db.ref('customers/' + id).update(data); } else { data.nextService = getSmartTwoWeeksDate(); await customersRef.push(data); }
             closeModal();
         }
-
         async function deleteCustomer(id, name) { 
             const password = prompt(`בטוח שברצונך למחוק את ${name}?\nהזן סיסמה לביצוע:`);
-            if (password === "1234") {
-                await db.ref('customers/' + id).remove(); 
-                alert("נמחק.");
-            }
+            if (password === "1234") { await db.ref('customers/' + id).remove(); alert("נמחק."); }
         }
-
         document.getElementById('today-date').innerText = dayjs().format('DD/MM/YYYY');
     </script>
 </body>
-</html>
+</html
